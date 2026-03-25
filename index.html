@@ -7,9 +7,36 @@
 </head>
 <body>
 
-    <canvas id="gl-canvas" width="512", height="512">Your browser doth not supporteth the Canvas element</canvas>
+    <!-- x-shader/x-vertex makes the red lines go away -->
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec4 vPosition;
+        attribute vec4 vColor;
+        varying vec4 fColor;
+
+        // viewing and projection matrices
+        uniform mat4 uViewMatrix;
+        uniform mat4 uProjectionMatrix;
+
+        void main() {
+            gl_Position = uProjectionMatrix * uViewMatrix * vPosition;
+            fColor = vColor;
+        }
+    </script>
+
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec4 fColor;
+
+        void main() {
+            gl_FragColor = fColor;
+        }
+    </script>
+
+    <canvas id="gl-canvas" width="1000" height="800">Your browser doth not supporteth the Canvas element</canvas>
 
     <script src="initShaders.js"></script>
     <script src="webgl-utils.js"></script>
+    <script src="common.js"></script>
+    <script src="scene.js"></script>
 </body>
 </html>
