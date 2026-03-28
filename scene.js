@@ -7,7 +7,9 @@ var keys = {
     "w": false,
     "a": false,
     "s": false,
-    "d": false
+    "d": false,
+    "q": false,
+    "e": false
 };
 
 var yaw = 0.0;
@@ -98,6 +100,10 @@ function render() {
     // Calculate the Projection Matrix (Lens)
     // 45 degree FOV, matching canvas aspect ratio, 0.1 near clip, 100.0 far clip
     var projectionMatrix = perspective(45.0, canvas.width / canvas.height, 0.1, 100.0);
+
+    // turning head left or right
+    if (keys.q) yaw -= turnSpeed;
+    if (keys.e) yaw += turnSpeed;
 
     // Calculate the direction we are currently facing
     var forwardX = Math.sin(yaw);
