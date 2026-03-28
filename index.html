@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -16,9 +17,10 @@
         // viewing and projection matrices
         uniform mat4 uViewMatrix;
         uniform mat4 uProjectionMatrix;
+        uniform mat4 uModelMatrix;
 
         void main() {
-            gl_Position = uProjectionMatrix * uViewMatrix * vPosition;
+            gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vPosition;
             fColor = vColor;
         }
     </script>

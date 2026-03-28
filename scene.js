@@ -1,42 +1,69 @@
 // webgl vars
 var gl, canvas;
-var uProjectionMatrix, uViewMatrix;
+var uProjectionMatrix, uViewMatrix, uModelMatrixLoc;
+
+// buffer vars
+var floorVBuffer, floorCBuffer;
+var tombstoneVBuffer, tombstoneCBuffer;
+var vPositionLoc, vColorLoc; 
 
 // movement vars
-var keys = {
-    "w": false,
-    "a": false,
-    "s": false,
-    "d": false,
-    "q": false,
-    "e": false
-};
+var keys = { "w": false, "a": false, "s": false, "d": false, "q": false, "e": false };
 
 var yaw = 0.0;
 var pitch = 0.0;
-var walkSpeed = 0.1;
+var walkSpeed = 0.05;
 var turnSpeed = 0.05;
 
-// initial cam position
+// initial cam position (Spawned close to the graves)
 var camX = 0.0;
 var camY = 2.0;
-var camZ = 5.0;
+var camZ = 5.0; 
 
+// --- VERTEX DATA ---
 const floorVertices = new Float32Array([
-    // First Triangle (Left half of the square)
-    -2.0, 0.0, -2.0,
-     2.0, 0.0, -2.0,
-    -2.0, 0.0,  2.0,
-    // Second Triangle (Right half of the square)
-    -2.0, 0.0,  2.0,
-     2.0, 0.0, -2.0,
-     2.0, 0.0,  2.0
+    -3.0, 0.0, -20.0,  
+     3.0, 0.0, -20.0,  
+    -3.0, 0.0,  20.0,  
+    -3.0, 0.0,  20.0,  
+     3.0, 0.0, -20.0,  
+     3.0, 0.0,  20.0   
 ]);
 
-// Let's make the floor a dark, gloomy gray (RGBA format)
 const floorColors = new Float32Array([
-    0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0,
-    0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0
+    0.3, 0.3, 0.3, 1.0,   0.3, 0.3, 0.3, 1.0,   0.3, 0.3, 0.3, 1.0,
+    0.3, 0.3, 0.3, 1.0,   0.3, 0.3, 0.3, 1.0,   0.3, 0.3, 0.3, 1.0
+]);
+
+const tombstoneVertices = new Float32Array([
+    // Front, Back, Top, Bottom, Right, Left faces...
+    -0.25, 0.0,  0.1,    0.25, 0.0,  0.1,    0.25, 1.0,  0.1,
+    -0.25, 0.0,  0.1,    0.25, 1.0,  0.1,   -0.25, 1.0,  0.1,
+    -0.25, 0.0, -0.1,   -0.25, 1.0, -0.1,    0.25, 1.0, -0.1,
+    -0.25, 0.0, -0.1,    0.25, 1.0, -0.1,    0.25, 0.0, -0.1,
+    -0.25, 1.0,  0.1,    0.25, 1.0,  0.1,    0.25, 1.0, -0.1,
+    -0.25, 1.0,  0.1,    0.25, 1.0, -0.1,   -0.25, 1.0, -0.1,
+    -0.25, 0.0,  0.1,   -0.25, 0.0, -0.1,    0.25, 0.0, -0.1,
+    -0.25, 0.0,  0.1,    0.25, 0.0, -0.1,    0.25, 0.0,  0.1,
+     0.25, 0.0,  0.1,    0.25, 0.0, -0.1,    0.25, 1.0, -0.1,
+     0.25, 0.0,  0.1,    0.25, 1.0, -0.1,    0.25, 1.0,  0.1,
+    -0.25, 0.0,  0.1,   -0.25, 1.0,  0.1,   -0.25, 1.0, -0.1,
+    -0.25, 0.0,  0.1,   -0.25, 1.0, -0.1,   -0.25, 0.0, -0.1
+]);
+
+const tombstoneColors = new Float32Array([
+    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
+    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
+    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
+    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
+    0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,
+    0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,
+    0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,
+    0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,
+    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,
+    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,
+    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,
+    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0
 ]);
 
 window.onload = function init() {
@@ -45,95 +72,120 @@ window.onload = function init() {
     if (!gl) { alert("WebGL isn't available :("); }
 
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.0, 0.0, 0.5, 1.0); // Very dark night sky
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
 
+    // 1. Initialize Shaders
     var program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
-    // Color Buffer
-    var colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    // 2. Build Floor Buffers
+    floorCBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, floorCBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, floorColors, gl.STATIC_DRAW);
 
-    var vColor = gl.getAttribLocation(program, "vColor");
-    gl.vertexAttribPointer(vColor, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vColor);
-
-    // Position Buffer
-    var positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    floorVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, floorVBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, floorVertices, gl.STATIC_DRAW);
 
-    var vPosition = gl.getAttribLocation(program, "vPosition");
-    gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPosition);
+    // 3. Build Tombstone Buffers
+    tombstoneCBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneCBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tombstoneColors, gl.STATIC_DRAW);
 
-    // event listeners
-    window.addEventListener("keydown", function(event) {
-        var key = event.key.toLowerCase();
-        if (key in keys) {
-            keys[key] = true;
-        }
-    });
+    tombstoneVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tombstoneVertices, gl.STATIC_DRAW);
 
-    // "debouncing" the button
-    window.addEventListener("keyup", function(event) {
-        var key = event.key.toLowerCase();
-        if (key in keys) {
-            keys[key] = false;
-        }
-    });
+    // 4. Get Attributes
+    vPositionLoc = gl.getAttribLocation(program, "vPosition");
+    vColorLoc = gl.getAttribLocation(program, "vColor");
+    gl.enableVertexAttribArray(vPositionLoc);
+    gl.enableVertexAttribArray(vColorLoc);
 
-    // Matrices
+    // 5. Get Matrix Uniforms
     uProjectionMatrix = gl.getUniformLocation(program, "uProjectionMatrix");
     uViewMatrix = gl.getUniformLocation(program, "uViewMatrix");
+    uModelMatrixLoc = gl.getUniformLocation(program, "uModelMatrix");
 
+    // Event listeners
+    window.addEventListener("keydown", function(event) {
+        var key = event.key.toLowerCase();
+        if (key in keys) keys[key] = true;
+    });
+
+    window.addEventListener("keyup", function(event) {
+        var key = event.key.toLowerCase();
+        if (key in keys) keys[key] = false;
+    });
+
+    // Start the game!
     render();
 }
 
-// rendering logic
+// --- RENDER PHASE ---
 function render() {
-    // Clear out the previous frame
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // Calculate the Projection Matrix (Lens)
-    // 45 degree FOV, matching canvas aspect ratio, 0.1 near clip, 100.0 far clip
     var projectionMatrix = perspective(45.0, canvas.width / canvas.height, 0.1, 100.0);
 
-    // turning head left or right
+    // Movement Logic
     if (keys.q) yaw -= turnSpeed;
     if (keys.e) yaw += turnSpeed;
 
-    // Calculate the direction we are currently facing
     var forwardX = Math.sin(yaw);
     var forwardZ = -Math.cos(yaw);
-    
-    // Calculate the direction directly to our right (for strafing)
     var rightX = Math.cos(yaw);
     var rightZ = Math.sin(yaw);
 
-    if (keys.w) { camX += forwardX * walkSpeed; camZ += forwardZ * walkSpeed; } // Forward
-    if (keys.s) { camX -= forwardX * walkSpeed; camZ -= forwardZ * walkSpeed; } // Backward
-    if (keys.a) { camX -= rightX * walkSpeed;   camZ -= rightZ * walkSpeed; }   // Left
-    if (keys.d) { camX += rightX * walkSpeed;   camZ += rightZ * walkSpeed; }   // Right
+    if (keys.w) { camX += forwardX * walkSpeed; camZ += forwardZ * walkSpeed; } 
+    if (keys.s) { camX -= forwardX * walkSpeed; camZ -= forwardZ * walkSpeed; } 
+    if (keys.a) { camX -= rightX * walkSpeed;   camZ -= rightZ * walkSpeed; }   
+    if (keys.d) { camX += rightX * walkSpeed;   camZ += rightZ * walkSpeed; }   
 
-    // update camera matrices
+    // Camera Matrices
     var eye = vec3(camX, camY, camZ);
-    
-    // target = current pos + forward direction
     var at = vec3(camX + forwardX, camY, camZ + forwardZ);  
     var up = vec3(0.0, 1.0, 0.0);
 
     var viewMatrix = lookAt(eye, at, up);
 
-    // send flattened matrices to GPU
     gl.uniformMatrix4fv(uProjectionMatrix, false, flatten(projectionMatrix));
     gl.uniformMatrix4fv(uViewMatrix, false, flatten(viewMatrix));
 
-    // Draw the floor
+    // --- DRAW THE FLOOR ---
+    // The floor uses an identity matrix (no movement)
+    var identityMatrix = mat4();
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(identityMatrix));
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, floorCBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, floorVBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    // Ask the browser to draw the next frame
+
+    // --- DRAW THE TOMBSTONES ---
+    // Bind tombstone data to the workbench once
+    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneCBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneVBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+
+    // Tombstone 1: Left
+    var modelMatrix1 = translate(-1.5, 0.0, -3.0);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(modelMatrix1));
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+
+    // Tombstone 2: Right
+    var modelMatrix2 = translate(1.5, 0.0, -5.0);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(modelMatrix2));
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+
+    // Tombstone 3: Center Distance
+    var modelMatrix3 = translate(0.0, 0.0, -8.0);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(modelMatrix3));
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+
     requestAnimFrame(render); 
 }
