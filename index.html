@@ -14,14 +14,34 @@
         attribute vec4 vColor;
         varying vec4 fColor;
 
+        // for lighting
+        attribute vec3 vNormal;
+        uniform vec3 uLightDirection;
+
         // viewing and projection matrices
         uniform mat4 uViewMatrix;
         uniform mat4 uProjectionMatrix;
         uniform mat4 uModelMatrix;
 
         void main() {
+            // for 3D position of objects
             gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vPosition;
-            fColor = vColor;
+
+            // rotate normal if model matrix includes rotation
+            vec3 transformedNormal = normalize((uModelMatrix * vec4(vNormal, 0.0)).xyz);
+            vec3 lightDir = normalize(uLightDirection);
+
+            // dot product -> light intensity
+            // max(0.0) prevents negative numbers so the dark side doesn't glow backwards
+            float lightIntensity = max(dot(transformedNormal, lightDir), 0.0);
+
+            // ambient lighting to avoid pitch dark for dark side
+            float ambientLight = 0.3; 
+
+            // multiply gray by light intensity
+            vec3 finalColor = vColor.rgb * (ambientLight + lightIntensity);
+
+            fColor = vec4(finalColor, vColor.a);
         }
     </script>
 
