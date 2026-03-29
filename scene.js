@@ -6,10 +6,13 @@ var uProjectionMatrix, uViewMatrix, uModelMatrixLoc;
 var floorVBuffer, floorCBuffer, floorNBuffer;
 var tombstoneVBuffer, tombstoneCBuffer;
 var moonCBuffer;
+var  tree1VBuffer, tree1CBuffer, tree1NBuffer;
+var tree2VBuffer, tree2CBuffer, tree2NBuffer;
+var tree3VBuffer, tree3CBuffer, tree3NBuffer;
 var vPositionLoc, vColorLoc; 
 
 // movement vars
-var keys = { "w": false, "a": false, "s": false, "d": false, "q": false, "e": false };
+var keys = { "w": false, "a": false, "s": false, "d": false, "q": false, "e": false, "space": false, "shiftleft": false, "leftCtrl": false };
 var yaw = 0.0;
 var pitch = 0.0;
 var walkSpeed = 0.05;
@@ -53,6 +56,103 @@ const floorNormals = new Float32Array([
     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0
 ]);
+
+function proceduralTree()
+{
+    let origin = [0.5, 0, 0.5];
+
+    let numLayers = Math.floor(Math.random() * 5) + 4; // between 4 and 8
+    let height = (numLayers + 2)*1;
+    
+    let trunkRadius = (1.0/height)*0.8; // taller trees have thinner trunks
+    let trunkVertices = [];
+    for (let i = 0; i < 8; i++)
+    {
+        let angle = (i/8.0) * 2 * Math.PI;
+        let x = origin[0] + trunkRadius * Math.cos(angle);
+        let z = origin[2] + trunkRadius * Math.sin(angle);
+        trunkVertices.push([x, 0, z]); // bottom octagon
+        trunkVertices.push([x, height-0.2*numLayers, z]); // top octagon
+    }
+    let trunkFaces = [];
+    let trunkColors = [];
+    for (let i = 0; i < 8; i++)
+    {
+        let next = (i + 1) % 8;
+        let bot_right = i*2;
+        let top_right = i*2 + 1;
+        let bot_left = next*2;
+        let top_left = next*2 + 1;
+        trunkFaces.push(trunkVertices[bot_right], trunkVertices[bot_left], trunkVertices[top_left]);
+        trunkFaces.push(trunkVertices[bot_right], trunkVertices[top_left], trunkVertices[top_right]);
+        for (let j = 0; j < 6; j++)
+        {
+            trunkColors.push(0.35, 0.07, 0.07, 1.0); // brown color
+        }
+    }
+
+    // adjust this later to be different for each layer
+    let layerHeight = (height - height/4) / numLayers; // leave some space for the trunk
+    let layerSize = 1; 
+    let layerVertices = [];
+    for (let i = 0; i < numLayers; i++)
+    {
+        let y = height/4 + (i*layerHeight); // start a bit above the trunk and move up
+        layerVertices.push([origin[0] - layerSize, y*0.75, origin[2] - layerSize]); 
+        layerVertices.push([origin[0] + layerSize, y*0.75, origin[2] - layerSize]);
+        layerVertices.push([origin[0] + layerSize, y*0.75, origin[2] + layerSize]);
+        layerVertices.push([origin[0] - layerSize, y*0.75, origin[2] + layerSize]);
+        layerVertices.push([origin[0], y + layerHeight, origin[2]]); 
+        layerSize *= 0.8; // each layer is smaller than the one below
+    }
+    let layerFaces = [];
+    let layerColors = [];
+    for (let i = 0; i < numLayers; i++)
+    {
+        for (let j = 0; j < 4; j++)
+        {
+            let next = (j + 1) % 4;
+            let base = i*5;
+            layerFaces.push(layerVertices[base + j], layerVertices[base + next], layerVertices[base + 4]); 
+            for (let k = 0; k < 3; k++)
+            {
+                layerColors.push(0.0, 0.2, 0.0, 1.0); // green color
+            }
+        }
+    }
+
+    let faces = trunkFaces.concat(layerFaces);
+    let colors = trunkColors.concat(layerColors);
+    // WIP
+    let normals = [];
+    for (let i = 0; i < colors.length; i += 4)
+    {
+        let v1 = vec3(0, 1, 0); // placeholder normal vector pointing up
+        normals.push(v1[0], v1[1], v1[2]);
+    }
+    
+
+    return {
+        faces: faces,
+        colors: colors,
+        normals: normals
+    };
+}
+
+const tree1Data = proceduralTree();
+const tree1Vertices = new Float32Array(flatten(tree1Data.faces));
+const tree1Colors = new Float32Array(tree1Data.colors);
+const tree1Normals = new Float32Array(tree1Data.normals);
+
+const tree2Data = proceduralTree();
+const tree2Vertices = new Float32Array(flatten(tree2Data.faces));
+const tree2Colors = new Float32Array(tree2Data.colors);
+const tree2Normals = new Float32Array(tree2Data.normals);
+
+const tree3Data = proceduralTree();
+const tree3Vertices = new Float32Array(flatten(tree3Data.faces));
+const tree3Colors = new Float32Array(tree3Data.colors);
+const tree3Normals = new Float32Array(tree3Data.normals);
 
 // tombstone def
 const tombstoneVertices = new Float32Array([
@@ -178,6 +278,45 @@ window.onload = function init() {
     gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, moonColorArray, gl.STATIC_DRAW);
 
+    // Tree 1 buffers
+    tree1CBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree1CBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree1Colors, gl.STATIC_DRAW);
+
+    tree1VBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree1VBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree1Vertices, gl.STATIC_DRAW);
+
+    tree1NBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree1NBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree1Normals, gl.STATIC_DRAW);
+
+    // Tree 2 buffers
+    tree2CBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree2CBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree2Colors, gl.STATIC_DRAW);
+
+    tree2VBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree2VBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree2Vertices, gl.STATIC_DRAW);
+
+    tree2NBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree2NBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree2Normals, gl.STATIC_DRAW);
+
+    // Tree 3 buffers
+    tree3CBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree3CBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree3Colors, gl.STATIC_DRAW);
+
+    tree3VBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree3VBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree3Vertices, gl.STATIC_DRAW);
+
+    tree3NBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree3NBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, tree3Normals, gl.STATIC_DRAW);
+
     // Get Attributes
     vPositionLoc = gl.getAttribLocation(program, "vPosition");
     vColorLoc = gl.getAttribLocation(program, "vColor");
@@ -192,6 +331,9 @@ window.onload = function init() {
     // Event listeners
     window.addEventListener("keydown", function(event) {
         var key = event.key.toLowerCase();
+        if (event.code === "Space") key = "space";
+        if (event.code === "ShiftLeft") key = "shiftleft";
+        if (event.code === "ControlLeft") key = "leftCtrl";
         if (key in keys) keys[key] = true;
 
         // switch shading mode
@@ -201,6 +343,9 @@ window.onload = function init() {
 
     window.addEventListener("keyup", function(event) {
         var key = event.key.toLowerCase();
+        if (event.code === "Space") key = "space";
+        if (event.code === "ShiftLeft") key = "shiftleft";
+        if (event.code === "ControlLeft") key = "leftCtrl";
         if (key in keys) keys[key] = false;
     });
 
@@ -223,10 +368,12 @@ function render() {
     var rightX = Math.cos(yaw);
     var rightZ = Math.sin(yaw);
 
-    if (keys.w) { camX += forwardX * walkSpeed; camZ += forwardZ * walkSpeed; } 
-    if (keys.s) { camX -= forwardX * walkSpeed; camZ -= forwardZ * walkSpeed; } 
-    if (keys.a) { camX -= rightX * walkSpeed;   camZ -= rightZ * walkSpeed; }   
-    if (keys.d) { camX += rightX * walkSpeed;   camZ += rightZ * walkSpeed; }   
+    if (keys.w) { camX += forwardX * (walkSpeed*(1+keys.leftCtrl)); camZ += forwardZ * (walkSpeed*(1+keys.leftCtrl)); } 
+    if (keys.s) { camX -= forwardX * (walkSpeed*(1+keys.leftCtrl)); camZ -= forwardZ * (walkSpeed*(1+keys.leftCtrl)); } 
+    if (keys.a) { camX -= rightX * (walkSpeed*(1+keys.leftCtrl));   camZ -= rightZ * (walkSpeed*(1+keys.leftCtrl)); }   
+    if (keys.d) { camX += rightX * (walkSpeed*(1+keys.leftCtrl));   camZ += rightZ * (walkSpeed*(1+keys.leftCtrl)); }   
+    if (keys.space) {camY += walkSpeed; }
+    if (keys.shiftleft) { camY -= walkSpeed; }
 
     // Camera Matrices
     var eye = vec3(camX, camY, camZ);
@@ -295,6 +442,46 @@ function render() {
 
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(moonModelMatrix));
     gl.drawArrays(drawMode, 0, 36);
+
+    // Tree 1: Left
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree1CBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree1VBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree1NBuffer);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+
+    var shrinkTree = scale(0.5, 0.5, 0.5);
+    var transTree = translate(-1.5, 0.0, -4.0);
+    var tree1ModelMatrix = mult(transTree, shrinkTree);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(tree1ModelMatrix));
+    gl.drawArrays(drawMode, 0, tree1Vertices.length / 3);
+
+    // Tree 2: Right
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree2CBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree2VBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree2NBuffer);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+
+    transTree = translate(1.5, 0.0, -1.0);
+    var tree2ModelMatrix = mult(transTree, shrinkTree);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(tree2ModelMatrix));
+    gl.drawArrays(drawMode, 0, tree2Vertices.length / 3);
+
+    // Tree 3: Center Distance
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree3CBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree3VBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, tree3NBuffer);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+
+    transTree = translate(0.0, 0.0, -12.0);
+    var tree3ModelMatrix = mult(transTree, shrinkTree);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(tree3ModelMatrix));
+    gl.drawArrays(drawMode, 0, tree3Vertices.length / 3);
 
     requestAnimFrame(render); 
 }
