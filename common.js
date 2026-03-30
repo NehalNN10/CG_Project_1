@@ -366,6 +366,20 @@ function mult(matrixA, matrixB) {
     return result;
 }
 
+// matrix-vector multiplication
+function multVec(matrix, vector) {
+    if (matrix[0].length !== vector.length) return "ERROR - dimension mismatch";
+    let result = [];
+    for (let i = 0; i < matrix.length; i++) {
+        let sum = 0;
+        for (let j = 0; j < matrix[0].length; j++) {
+            sum += matrix[i][j] * vector[j];
+        }
+        result.push(sum);
+    }
+    return result;
+}
+
 // translation matrix
 function translate(tx, ty, tz) {
     var result = mat4(); // Starts as an identity matrix

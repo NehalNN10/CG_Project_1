@@ -33,7 +33,7 @@
 
             // dot product -> light intensity
             // max(0.0) prevents negative numbers so the dark side doesn't glow backwards
-            float lightIntensity = max(dot(transformedNormal, lightDir), 0.0);
+            float lightIntensity = max(1.5 * dot(transformedNormal, lightDir), 0.0);
 
             // ambient lighting to avoid pitch dark for dark side
             float ambientLight = 0.3; 
