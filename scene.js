@@ -2,6 +2,12 @@
 var gl, canvas;
 var uProjectionMatrix, uViewMatrix, uModelMatrixLoc;
 
+// fog vars
+var fogColor = new Float32Array([0.2, 0.2, 0.2, 1.0]); // dark grey
+var fogNear = 3.0;  
+var fogFar = 10.0; 
+var uFogColorLoc, uFogNearLoc, uFogFarLoc;
+
 // buffer vars
 var floorVBuffer, floorCBuffer, floorNBuffer;
 var tombstoneVBuffer, tombstoneCBuffer, tombstoneNBuffer;
@@ -269,7 +275,8 @@ window.onload = function init() {
     if (!gl) { alert("WebGL isn't available :("); }
 
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    // gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clearColor(fogColor[0], fogColor[1], fogColor[2], fogColor[3]);
     gl.enable(gl.DEPTH_TEST);
 
     // Initialize Shaders
@@ -341,6 +348,9 @@ window.onload = function init() {
     uModelMatrixLoc = gl.getUniformLocation(program, "uModelMatrix");
     uViewMatrix = gl.getUniformLocation(program, "uViewMatrix");
     uProjectionMatrix = gl.getUniformLocation(program, "uProjectionMatrix");
+    uFogColorLoc = gl.getUniformLocation(program, "uFogColor");
+    uFogNearLoc = gl.getUniformLocation(program, "uFogNear");
+    uFogFarLoc = gl.getUniformLocation(program, "uFogFar");
 
     // Event listeners
     window.addEventListener("keydown", function(event) {
@@ -467,6 +477,10 @@ function render() {
     // var lightDirection = [10.0, 15.0, -20.0];
     var lightDirection = [moonX, moonY, moonZ];
     gl.uniform3fv(uLightDirectionLoc, flatten(lightDirection));
+
+    gl.uniform4fv(uFogColorLoc, fogColor);
+    gl.uniform1f(uFogNearLoc, fogNear);
+    gl.uniform1f(uFogFarLoc, fogFar);
 
     // --- DRAW THE FLOOR ---
     // The floor uses an identity matrix (no movement)

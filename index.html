@@ -14,6 +14,9 @@
         attribute vec4 vColor;
         varying vec4 fColor;
 
+        // fog
+        varying float vDistance;
+
         // for lighting
         attribute vec3 vNormal;
         uniform vec3 uLightDirection;
@@ -24,8 +27,17 @@
         uniform mat4 uModelMatrix;
 
         void main() {
+            
+            // fog
+            // position of the vertex relative to the camera
+            vec4 viewSpacePosition = uViewMatrix * uModelMatrix * vPosition;
+            
+            // radial distance from the camera to the vertex
+            vDistance = length(viewSpacePosition.xyz);
+
             // for 3D position of objects
-            gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vPosition;
+            // gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vPosition;
+            gl_Position = uProjectionMatrix * viewSpacePosition;
 
             // rotate normal if model matrix includes rotation
             vec3 transformedNormal = normalize((uModelMatrix * vec4(vNormal, 0.0)).xyz);
@@ -48,9 +60,17 @@
     <script id="fragment-shader" type="x-shader/x-fragment">
         precision mediump float;
         varying vec4 fColor;
+        varying float vDistance;  // fog
+        uniform float uFogNear;
+        uniform float uFogFar;
+        uniform vec4 uFogColor;
 
         void main() {
-            gl_FragColor = fColor;
+            // gl_FragColor = fColor;
+
+            float fogFactor = (uFogFar - vDistance) / (uFogFar - uFogNear);
+            fogFactor = clamp(fogFactor, 0.0, 1.0);
+            gl_FragColor = mix(uFogColor, fColor, fogFactor);
         }
     </script>
 
