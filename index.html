@@ -20,6 +20,7 @@
         // for lighting
         attribute vec3 vNormal;
         uniform vec3 uLightDirection;
+        varying float vLightDistance;
 
         // viewing and projection matrices
         uniform mat4 uViewMatrix;
@@ -28,30 +29,49 @@
 
         void main() {
             
-            // fog
+            // Vertex position
             // position of the vertex relative to the camera
             vec4 viewSpacePosition = uViewMatrix * uModelMatrix * vPosition;
             
+            // for 3D position of objects
+            gl_Position = uProjectionMatrix * viewSpacePosition;
+            
+            // Fog
             // radial distance from the camera to the vertex
             vDistance = length(viewSpacePosition.xyz);
+            
+            // Blinn-Phong Lighting
+            vec3 lightColor = vec3(1.0, 1.0, 1.0); // white light
+            vec4 worldPosition = uModelMatrix * vPosition;
+            vec3 lightDir = normalize(uLightDirection - worldPosition.xyz);
+            vLightDistance = length(worldPosition.xyz - uLightDirection);
+            vec3 lightDirView = normalize((uViewMatrix * vec4(lightDir, 0.0)).xyz); // light direction in view space
+            vec3 normalView = normalize((uViewMatrix * uModelMatrix * vec4(vNormal, 0.0)).xyz); // normal in view space
+            float a = 0.3;
+            float b = 1.2;
+            float c = 0.5;
+            float distanceFactor = 1.0 / (a + b * vLightDistance + c * vLightDistance * vLightDistance);
 
-            // for 3D position of objects
-            // gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vPosition;
-            gl_Position = uProjectionMatrix * viewSpacePosition;
+            // ambient
+            // k_a*L_a represented as one scalar
+            float I_a = 0.5; // ambient intensity
 
-            // rotate normal if model matrix includes rotation
-            vec3 transformedNormal = normalize((uModelMatrix * vec4(vNormal, 0.0)).xyz);
-            vec3 lightDir = normalize(uLightDirection);
+            // diffuse
+            float L_d = 200.0; // diffuse intensity
+            float k_d = 1.0; // scaling factor (i think set based on material properties)
 
-            // dot product -> light intensity
-            // max(0.0) prevents negative numbers so the dark side doesn't glow backwards
-            float lightIntensity = max(1.5 * dot(transformedNormal, lightDir), 0.0);
+            // max(,0.0) prevents negative numbers so the dark side doesn't glow backwards
+            float I_d = distanceFactor*k_d*max(dot(normalView, lightDirView), 0.0)*L_d;
 
-            // ambient lighting to avoid pitch dark for dark side
-            float ambientLight = 0.3; 
+            // specular
+            float L_s = 0.0; // specular intensity
+            float k_s = 1.0; 
+            float shininess = 32.0;
+            vec3 h = normalize(lightDirView - viewSpacePosition.xyz); // halfway vector
+            float I_s = distanceFactor * k_s * max(pow(dot(normalView, h), shininess), 0.0) * L_s;
 
-            // multiply gray by light intensity
-            vec3 finalColor = vColor.rgb * (ambientLight + lightIntensity);
+            vec3 finalColor = (vColor.rgb * (I_a + I_d) + vec3(I_s)) * lightColor; 
+            // got the above expression that separates specular reflection from Gemini - the reasoning is that specular reflection should add the light color to the final color, while ambient and diffuse reflection should scale the vertex color by the light color
 
             fColor = vec4(finalColor, vColor.a);
         }

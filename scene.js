@@ -3,20 +3,21 @@ var gl, canvas;
 var uProjectionMatrix, uViewMatrix, uModelMatrixLoc;
 
 // fog vars
-var fogColor = new Float32Array([0.2, 0.2, 0.2, 1.0]); // dark grey
+var fogColor = new Float32Array([0.3, 0.3, 0.3, 1.0]); // dark grey
 var fogNear = 3.0;  
-var fogFar = 10.0; 
+var fogFar = 12.0; 
 var uFogColorLoc, uFogNearLoc, uFogFarLoc;
 
 // buffer vars
 var floorVBuffer, floorCBuffer, floorNBuffer;
-var tombstoneVBuffer, tombstoneCBuffer, tombstoneNBuffer;
-var moonCBuffer;
+var moonVBuffer, moonCBuffer;
 var  tree1VBuffer, tree1CBuffer, tree1NBuffer;
 var tree2VBuffer, tree2CBuffer, tree2NBuffer;
 var tree3VBuffer, tree3CBuffer, tree3NBuffer;
 var tree4VBuffer, tree4CBuffer, tree4NBuffer;
 var tree5VBuffer, tree5CBuffer, tree5NBuffer;
+var streetlightLeftVBuffer, streetlightLeftCBuffer, streetlightLeftNBuffer;
+var streetlightRightVBuffer, streetlightRightCBuffer, streetlightRightNBuffer;
 var vPositionLoc, vColorLoc; 
 
 // movement vars
@@ -39,8 +40,8 @@ var camZ = 5.0;
 
 // moon position
 var moonX = 0.0;
-var moonY = 50.0;
-var moonZ = 0.0;
+var moonY = 10.0;
+var moonZ = -25.0;
 
 // lighting vars
 var vNormalLoc;
@@ -48,6 +49,7 @@ var uLightDirectionLoc;
 
 // shading var
 var drawMode;
+var shadingMode; // "flat" or "gourad"
 
 // floor def
 const floorVertices = new Float32Array([
@@ -78,17 +80,21 @@ function generateTree(type) // 4 <= numLayers <= 8
     let numLayers = type + 3;
     let height = (numLayers + 2)*1;
     
-    let trunkRadius = (1.0/height)*0.8; // taller trees have thinner trunks
+    let trunkRadius = (1.0/height)*1; // taller trees have thinner trunks
     let trunkVertices = [];
+    let trunkVerticesInFaces = []; // to store which vertices are in which faces
     for (let i = 0; i < 8; i++)
     {
         let angle = (i/8.0) * 2 * Math.PI;
         let x = origin[0] + trunkRadius * Math.cos(angle);
         let z = origin[2] + trunkRadius * Math.sin(angle);
         trunkVertices.push([x, 0, z]); // bottom octagon
+        trunkVerticesInFaces.push([]);
         trunkVertices.push([x, height-0.2*numLayers, z]); // top octagon
+        trunkVerticesInFaces.push([]);
     }
     let trunkFaces = [];
+    let trunkFacesIndices = [];
     let trunkColors = [];
     for (let i = 0; i < 8; i++)
     {
@@ -97,14 +103,24 @@ function generateTree(type) // 4 <= numLayers <= 8
         let top_right = i*2 + 1;
         let bot_left = next*2;
         let top_left = next*2 + 1;
+
         trunkFaces.push(trunkVertices[bot_right], trunkVertices[bot_left], trunkVertices[top_left]);
+        trunkFacesIndices.push(bot_right, bot_left, top_left);
+        trunkVerticesInFaces[bot_right].push(trunkFaces.length/3 - 1);
+        trunkVerticesInFaces[bot_left].push(trunkFaces.length/3 - 1);
+        trunkVerticesInFaces[top_left].push(trunkFaces.length/3 - 1);
+
         trunkFaces.push(trunkVertices[bot_right], trunkVertices[top_left], trunkVertices[top_right]);
+        trunkFacesIndices.push(bot_right, top_left, top_right);
+        trunkVerticesInFaces[bot_right].push(trunkFaces.length/3 - 1);
+        trunkVerticesInFaces[top_left].push(trunkFaces.length/3 - 1);
+        trunkVerticesInFaces[top_right].push(trunkFaces.length/3 - 1);
         for (let j = 0; j < 6; j++)
         {
-            trunkColors.push(0.35, 0.07, 0.07, 1.0); // brown color
+            trunkColors.push(0.396, 0.263, 0.129, 1.0); // brown color
         }
     }
-    let trunkNormals = [];
+    let trunkFaceNormals = [];
     for (let i = 0; i < trunkFaces.length; i += 3)
     {
         let v1 = vectorDifference(trunkFaces[i+1], trunkFaces[i]);
@@ -113,24 +129,47 @@ function generateTree(type) // 4 <= numLayers <= 8
         normal = normalizeVector(normal);
         for (let j = 0; j < 3; j++)
         {
-            trunkNormals.push(normal[0], normal[1], normal[2]);
+            trunkFaceNormals.push(normal[0], normal[1], normal[2]);
         }
+    }
+    let trunkVertexNormals = [];
+    for (let i = 0; i < trunkFacesIndices.length; i++)
+    {
+        let vertIndex = trunkFacesIndices[i];
+        let normalSum = [0, 0, 0];
+        for (let j = 0; j < trunkVerticesInFaces[vertIndex].length; j++)
+        {
+            let faceIndex = trunkVerticesInFaces[vertIndex][j];
+            normalSum[0] += trunkFaceNormals[faceIndex*9];
+            normalSum[1] += trunkFaceNormals[faceIndex*9 + 1];
+            normalSum[2] += trunkFaceNormals[faceIndex*9 + 2];
+        }
+
+        normalSum = normalizeVector(normalSum);
+        trunkVertexNormals.push(normalSum[0], normalSum[1], normalSum[2]);
     }
 
     let layerHeight = (height - height/4) / numLayers; // leave some space for the trunk
     let layerSize = 1; 
     let layerVertices = [];
+    let layerVerticesInFaces = [];
     for (let i = 0; i < numLayers; i++)
     {
         let y = height/4 + (i*layerHeight); // start a bit above the trunk and move up
         layerVertices.push([origin[0] - layerSize, y*0.75, origin[2] - layerSize]); 
+        layerVerticesInFaces.push([]);
         layerVertices.push([origin[0] + layerSize, y*0.75, origin[2] - layerSize]);
+        layerVerticesInFaces.push([]);
         layerVertices.push([origin[0] + layerSize, y*0.75, origin[2] + layerSize]);
+        layerVerticesInFaces.push([]);
         layerVertices.push([origin[0] - layerSize, y*0.75, origin[2] + layerSize]);
-        layerVertices.push([origin[0], y + layerHeight, origin[2]]); 
+        layerVerticesInFaces.push([]);
+        layerVertices.push([origin[0], y + layerHeight, origin[2]]);
+        layerVerticesInFaces.push([]);
         layerSize *= 0.8; // each layer is smaller than the one below
     }
     let layerFaces = [];
+    let layerFacesIndices = [];
     let layerColors = [];
     for (let i = 0; i < numLayers; i++)
     {
@@ -139,13 +178,18 @@ function generateTree(type) // 4 <= numLayers <= 8
             let next = (j + 1) % 4;
             let base = i*5;
             layerFaces.push(layerVertices[base + j], layerVertices[base + next], layerVertices[base + 4]); 
+            layerFacesIndices.push(base + j, base + next, base + 4);
+            layerVerticesInFaces[base + j].push(layerFaces.length/3 - 1);
+            layerVerticesInFaces[base + next].push(layerFaces.length/3 - 1);
+            layerVerticesInFaces[base + 4].push(layerFaces.length/3 - 1);
             for (let k = 0; k < 3; k++)
             {
                 layerColors.push(0.0, 0.2, 0.0, 1.0); // green color
             }
         }
     }
-    let layerNormals = [];
+    let layerFaceNormals = [];
+    let layerVertexNormals = [];
     for (let i = 0; i < layerFaces.length; i += 3)
     {
         let v1 = vectorDifference(layerFaces[i+1], layerFaces[i]);
@@ -154,18 +198,34 @@ function generateTree(type) // 4 <= numLayers <= 8
         normal = normalizeVector(normal);
         for (let j = 0; j < 3; j++)
         {
-            layerNormals.push(normal[0], normal[1], normal[2]);
+            layerFaceNormals.push(normal[0], normal[1], normal[2]);
         }
+    }
+    for (let i = 0; i < layerFacesIndices.length; i++)
+    {
+        let vertIndex = layerFacesIndices[i];
+        let normalSum = [0, 0, 0];
+        for (let j = 0; j < layerVerticesInFaces[vertIndex].length; j++)
+        {
+            let faceIndex = layerVerticesInFaces[vertIndex][j];
+            normalSum[0] += layerFaceNormals[faceIndex*9];
+            normalSum[1] += layerFaceNormals[faceIndex*9 + 1];
+            normalSum[2] += layerFaceNormals[faceIndex*9 + 2];
+        }
+        normalSum = normalizeVector(normalSum);
+        layerVertexNormals.push(normalSum[0], normalSum[1], normalSum[2]);
     }
     
     let faces = trunkFaces.concat(layerFaces);
     let colors = trunkColors.concat(layerColors);
-    let normals = trunkNormals.concat(layerNormals);    
+    let faceNormals = trunkFaceNormals.concat(layerFaceNormals);
+    let vertexNormals = trunkVertexNormals.concat(layerVertexNormals);
     
     return {
         faces: faces,
         colors: colors,
-        normals: normals
+        faceNormals: faceNormals,
+        vertexNormals: vertexNormals
     };
 }
 
@@ -176,14 +236,16 @@ var treeNBuffers = [tree1NBuffer, tree2NBuffer, tree3NBuffer, tree4NBuffer, tree
 
 var treeVertices = [];
 var treeColors = [];
-var treeNormals = []; 
+var treeFaceNormals = []; 
+var treeVertexNormals = [];
 
 for (let i = 1; i <= 5; i++)
 {
     let treeData = generateTree(i);
     treeVertices.push(new Float32Array(flatten(treeData.faces)));
     treeColors.push(new Float32Array(treeData.colors));
-    treeNormals.push(new Float32Array(treeData.normals));
+    treeFaceNormals.push(new Float32Array(treeData.faceNormals));
+    treeVertexNormals.push(new Float32Array(treeData.vertexNormals));
 }
 
 const numTrees = 100;
@@ -194,51 +256,380 @@ for (let i = 0; i < numTrees; i++)
 {
     let treeType = Math.floor(Math.random() * 5) + 1; 
     treeTypeArray.push(treeType);
-    let x = Math.random()*6 - 3;
-    x = x < 0 ? x - 3.3 : x + 3.3;
+    let x = Math.random()*20 - 10;
+    x = x < 0 ? x - 3.31 : x + 3.31;
     treeLocations.push([x, 0, Math.random() * 40 - 20]);
 }
 
-// tombstone def
-const tombstoneVertices = new Float32Array([
+function generateStreetlight(dir) // dir = 0 for left, 1 for right
+{
+    let origin = [0.5, 0, 0.5];
+
+    let lampHeight = 4.0;
+    let lampThickness = 0.1;
+    let lampBaseThickness = lampThickness + (lampThickness * 0.3);
+    let lampBaseHeight = lampHeight/40;
+    let lampOverhangLength = 1.0;
+    let lampOverhangWidth = lampThickness-0.001;
+    let lampOverhangThickness = 0.1;
+
+    let lampColor = [0.5, 0.5, 0.5, 1.0]; // grey color
+
+    let baseVertices = [];
+    let baseVerticesInFaces = [];
+    for (let i = 0; i < 10; i++)
+    {
+        let angle = (i/10.0) * 2 * Math.PI;
+        let x = origin[0] + lampBaseThickness * Math.cos(angle);
+        let z = origin[2] + lampBaseThickness * Math.sin(angle);
+        baseVertices.push([x, 0, z]); // bottom part
+        baseVerticesInFaces.push([]);
+        baseVertices.push([x, lampBaseHeight, z]); // top part
+        baseVerticesInFaces.push([]);
+    }
+    baseVertices.push([origin[0], lampBaseHeight, origin[2]]); // center top vertex for the base
+    baseVerticesInFaces.push([]);
+
+    let baseFaces = [];
+    let baseFacesIndices = [];
+    let baseColors = [];
+    for (let i = 0; i < 10; i++)
+    {
+        let next = (i + 1) % 10;
+        let bot_right = i*2;
+        let top_right = i*2 + 1;
+        let bot_left = next*2;
+        let top_left = next*2 + 1;
+
+        baseFaces.push(baseVertices[bot_right], baseVertices[bot_left], baseVertices[top_left]);
+        baseFacesIndices.push(bot_right, bot_left, top_left);
+        baseVerticesInFaces[bot_right].push(baseFaces.length/3 - 1);
+        baseVerticesInFaces[bot_left].push(baseFaces.length/3 - 1);
+        baseVerticesInFaces[top_left].push(baseFaces.length/3 - 1);
+
+        baseFaces.push(baseVertices[bot_right], baseVertices[top_left], baseVertices[top_right]);
+        baseFacesIndices.push(bot_right, top_left, top_right);
+        baseVerticesInFaces[bot_right].push(baseFaces.length/3 - 1);
+        baseVerticesInFaces[top_left].push(baseFaces.length/3 - 1);
+        baseVerticesInFaces[top_right].push(baseFaces.length/3 - 1);
+
+        baseFaces.push(baseVertices[top_right], baseVertices[top_left], baseVertices[20]); // top face using the center vertex
+        baseFacesIndices.push(top_right, top_left, 20);
+        baseVerticesInFaces[top_right].push(baseFaces.length/3 - 1);
+        baseVerticesInFaces[top_left].push(baseFaces.length/3 - 1);
+        baseVerticesInFaces[20].push(baseFaces.length/3 - 1);
+        for (let j = 0; j < 9; j++)
+        {
+            baseColors.push(lampColor[0], lampColor[1], lampColor[2], lampColor[3]);
+        }
+    }
+    
+    let baseFaceNormals = [];
+    for (let i = 0; i < baseFaces.length; i += 3)
+    {
+        let v1 = vectorDifference(baseFaces[i+1], baseFaces[i]);
+        let v2 = vectorDifference(baseFaces[i+1], baseFaces[i+2]);
+        let normal = crossProduct(v1, v2);
+        normal = normalizeVector(normal);
+        for (let j = 0; j < 3; j++)
+        {
+            baseFaceNormals.push(normal[0], normal[1], normal[2]);
+        }
+    }
+    let baseVertexNormals = [];
+    for (let i = 0; i < baseFacesIndices.length; i++)
+    {
+        let vertIndex = baseFacesIndices[i];
+        let normalSum = [0, 0, 0];
+        for (let j = 0; j < baseVerticesInFaces[vertIndex].length; j++)
+        {
+            let faceIndex = baseVerticesInFaces[vertIndex][j];
+            normalSum[0] += baseFaceNormals[faceIndex*9];
+            normalSum[1] += baseFaceNormals[faceIndex*9 + 1];
+            normalSum[2] += baseFaceNormals[faceIndex*9 + 2];
+        }
+        normalSum = normalizeVector(normalSum);
+        baseVertexNormals.push(normalSum[0], normalSum[1], normalSum[2]);
+    }
+
+    let poleVertices = [];
+    let poleVerticesInFaces = [];
+    for (let i = 0; i < 10; i++)
+    {
+        let angle = (i/10.0) * 2 * Math.PI;
+        let x = origin[0] + lampThickness * Math.cos(angle);
+        let z = origin[2] + lampThickness * Math.sin(angle);
+        poleVertices.push([x, lampBaseHeight, z]); // bottom part
+        poleVerticesInFaces.push([]);
+        poleVertices.push([x, lampHeight, z]); // top part
+        poleVerticesInFaces.push([]);
+    }
+    poleVertices.push([origin[0], lampHeight, origin[2]]); // center top vertex for the pole
+    poleVerticesInFaces.push([]);
+
+    let poleFaces = [];
+    let poleFacesIndices = [];
+    let poleColors = [];
+    for (let i = 0; i < 10; i++)
+    {
+        let next = (i + 1) % 10;
+        let bot_right = i*2;
+        let top_right = i*2 + 1;
+        let bot_left = next*2;
+        let top_left = next*2 + 1;
+
+        poleFaces.push(poleVertices[bot_right], poleVertices[bot_left], poleVertices[top_left]);
+        poleFacesIndices.push(bot_right, bot_left, top_left);
+        poleVerticesInFaces[bot_right].push(poleFaces.length/3 - 1);
+        poleVerticesInFaces[bot_left].push(poleFaces.length/3 - 1);
+        poleVerticesInFaces[top_left].push(poleFaces.length/3 - 1);
+        
+        poleFaces.push(poleVertices[bot_right], poleVertices[top_left], poleVertices[top_right]);
+        poleFacesIndices.push(bot_right, top_left, top_right);
+        poleVerticesInFaces[bot_right].push(poleFaces.length/3 - 1);
+        poleVerticesInFaces[top_left].push(poleFaces.length/3 - 1);
+        poleVerticesInFaces[top_right].push(poleFaces.length/3 - 1);
+
+        poleFaces.push(poleVertices[top_right], poleVertices[top_left], poleVertices[20]); // top face using the center vertex
+        poleFacesIndices.push(top_right, top_left, 20);
+        poleVerticesInFaces[top_right].push(poleFaces.length/3 - 1);
+        poleVerticesInFaces[top_left].push(poleFaces.length/3 - 1);
+        poleVerticesInFaces[20].push(poleFaces.length/3 - 1);
+        for (let j = 0; j < 9; j++)
+        {
+            poleColors.push(lampColor[0], lampColor[1], lampColor[2], lampColor[3]);
+        }
+    }
+
+    let poleFaceNormals = [];
+    for (let i = 0; i < poleFaces.length; i += 3)
+    {
+        let v1 = vectorDifference(poleFaces[i+1], poleFaces[i]);
+        let v2 = vectorDifference(poleFaces[i+1], poleFaces[i+2]);
+        let normal = crossProduct(v1, v2);
+        normal = normalizeVector(normal);
+        for (let j = 0; j < 3; j++)
+        {
+            poleFaceNormals.push(normal[0], normal[1], normal[2]);
+        }
+    }
+    let poleVertexNormals = [];
+    for (let i = 0; i < poleFacesIndices.length; i++)
+    {
+        let vertIndex = poleFacesIndices[i];
+        let normalSum = [0, 0, 0];
+        for (let j = 0; j < poleVerticesInFaces[vertIndex].length; j++)
+        {
+            let faceIndex = poleVerticesInFaces[vertIndex][j];
+            normalSum[0] += poleFaceNormals[faceIndex*9];
+            normalSum[1] += poleFaceNormals[faceIndex*9 + 1];
+            normalSum[2] += poleFaceNormals[faceIndex*9 + 2];
+        }
+        normalSum = normalizeVector(normalSum);
+        poleVertexNormals.push(normalSum[0], normalSum[1], normalSum[2]);
+    }
+
+    let overhangVertices = [];
+    let overhangVerticesInFaces = [];
+
+    let dirSign = dir == 1 ? 1 : -1;
+    let xInner = origin[0];
+    let xOuter = xInner + dirSign * lampOverhangLength;
+    let xMin = Math.min(xInner, xOuter);
+    let xMax = Math.max(xInner, xOuter);
+    let yBottom = lampHeight - lampOverhangThickness;
+    let yTop = lampHeight-0.01; // to avoid z-fighting with the pole's top face
+    let zNear = origin[2] - lampOverhangWidth;
+    let zFar = origin[2] + lampOverhangWidth;
+
+    overhangVertices.push(
+        [xMin, yBottom, zNear], 
+        [xMax, yBottom, zNear], 
+        [xMax, yTop, zNear],    
+        [xMin, yTop, zNear],    
+        [xMin, yBottom, zFar],  
+        [xMax, yBottom, zFar],  
+        [xMax, yTop, zFar],     
+        [xMin, yTop, zFar]      
+    );
+    for (let i = 0; i < 8; i++)
+    {
+        overhangVerticesInFaces.push([]);
+    }
+
+    let overhangFaces = [];
+    let overhangFacesIndices = [];
+    let overhangColors = [];
+
+    let overhangTriIndices = [
+        [4, 5, 6], [4, 6, 7], 
+        [1, 0, 3], [1, 3, 2], 
+        [3, 7, 6], [3, 6, 2], 
+        [0, 1, 5], [0, 5, 4], 
+        [1, 2, 6], [1, 6, 5], 
+        [0, 4, 7], [0, 7, 3]  
+    ];
+
+    for (let i = 0; i < overhangTriIndices.length; i++)
+    {
+        let a = overhangTriIndices[i][0];
+        let b = overhangTriIndices[i][1];
+        let c = overhangTriIndices[i][2];
+
+        overhangFaces.push(overhangVertices[a], overhangVertices[b], overhangVertices[c]);
+        overhangFacesIndices.push(a, b, c);
+
+        overhangVerticesInFaces[a].push(overhangFaces.length/3 - 1);
+        overhangVerticesInFaces[b].push(overhangFaces.length/3 - 1);
+        overhangVerticesInFaces[c].push(overhangFaces.length/3 - 1);
+
+        for (let j = 0; j < 3; j++)
+        {
+            overhangColors.push(lampColor[0], lampColor[1], lampColor[2], lampColor[3]);
+        }
+    }
+    
+    let overhangFaceNormals = [];
+    for (let i = 0; i < overhangFaces.length; i += 3)
+    {
+        let v1 = vectorDifference(overhangFaces[i+1], overhangFaces[i]);
+        let v2 = vectorDifference(overhangFaces[i+1], overhangFaces[i+2]);
+        let normal = crossProduct(v2, v1);
+        normal = normalizeVector(normal);
+        for (let j = 0; j < 3; j++)
+        {
+            overhangFaceNormals.push(normal[0], normal[1], normal[2]);
+        }
+    }
+    let overhangVertexNormals = [];
+    for (let i = 0; i < overhangFacesIndices.length; i++)
+    {
+        let vertIndex = overhangFacesIndices[i];
+        let normalSum = [0, 0, 0];
+        for (let j = 0; j < overhangVerticesInFaces[vertIndex].length; j++)
+        {
+            let faceIndex = overhangVerticesInFaces[vertIndex][j];
+            normalSum[0] += overhangFaceNormals[faceIndex*9];
+            normalSum[1] += overhangFaceNormals[faceIndex*9 + 1];
+            normalSum[2] += overhangFaceNormals[faceIndex*9 + 2];
+        }
+        normalSum = normalizeVector(normalSum);
+        overhangVertexNormals.push(normalSum[0], normalSum[1], normalSum[2]);
+    }
+
+    let lampLightContainerVertices = [];
+    let lampLightContainerVerticesInFaces = [];
+    for (let i = 0; i < 4; i++)
+    {
+        let angle = (i/4.0) * 2 * Math.PI + Math.PI/4;
+        let x = origin[0] + 2* lampOverhangWidth * Math.cos(angle);
+        x = dir == 1 ? x + lampOverhangLength - lampOverhangWidth : x - lampOverhangLength + lampOverhangWidth;
+        let z = origin[2] + lampOverhangWidth * Math.sin(angle);
+        lampLightContainerVertices.push([x, origin[1] + lampHeight - lampOverhangThickness*1.5, z]);
+        lampLightContainerVerticesInFaces.push([]);
+    }
+    lampLightContainerVertices.push([origin[0] + (dir == 1 ? lampOverhangLength - lampOverhangWidth : -lampOverhangLength + lampOverhangWidth), origin[1] + lampHeight - lampOverhangThickness, origin[2]]);
+    lampLightContainerVerticesInFaces.push([]);
+
+    let lampLightContainerFaces = [];
+    let lampLightContainerFacesIndices = [];
+    let lampLightContainerColors = [];
+    for (let i = 0; i < 4; i++)
+    {
+        let next = (i + 1) % 4;
+        lampLightContainerFaces.push(lampLightContainerVertices[i], lampLightContainerVertices[next], lampLightContainerVertices[4]);
+        lampLightContainerFacesIndices.push(i, next, 4);
+        lampLightContainerVerticesInFaces[i].push(lampLightContainerFaces.length/3 - 1);
+        lampLightContainerVerticesInFaces[next].push(lampLightContainerFaces.length/3 - 1);
+        lampLightContainerVerticesInFaces[4].push(lampLightContainerFaces.length/3 - 1);
+        for (let j = 0; j < 3; j++)
+        {
+            lampLightContainerColors.push(lampColor[0], lampColor[1], lampColor[2], lampColor[3]);
+        }
+    }
+    let lampLightContainerFaceNormals = [];
+    for (let i = 0; i < lampLightContainerFaces.length; i += 3)
+    {
+        let v1 = vectorDifference(lampLightContainerFaces[i+1], lampLightContainerFaces[i]);
+        let v2 = vectorDifference(lampLightContainerFaces[i+1], lampLightContainerFaces[i+2]);
+        let normal = crossProduct(v1, v2);
+        normal = normalizeVector(normal);
+        for (let j = 0; j < 3; j++)
+        {
+            lampLightContainerFaceNormals.push(normal[0], normal[1], normal[2]);
+        }
+    }
+    let lampLightContainerVertexNormals = [];
+    for (let i = 0; i < lampLightContainerFacesIndices.length; i++)
+    {
+        let vertIndex = lampLightContainerFacesIndices[i];
+        let normalSum = [0, 0, 0];
+        for (let j = 0; j < lampLightContainerVerticesInFaces[vertIndex].length; j++)
+        {
+            let faceIndex = lampLightContainerVerticesInFaces[vertIndex][j];
+            normalSum[0] += lampLightContainerFaceNormals[faceIndex*9];
+            normalSum[1] += lampLightContainerFaceNormals[faceIndex*9 + 1];
+            normalSum[2] += lampLightContainerFaceNormals[faceIndex*9 + 2];
+        }
+        normalSum = normalizeVector(normalSum);
+        lampLightContainerVertexNormals.push(normalSum[0], normalSum[1], normalSum[2]);
+    }
+
+    let faces = baseFaces.concat(poleFaces, overhangFaces, lampLightContainerFaces);
+    let colors = baseColors.concat(poleColors, overhangColors, lampLightContainerColors);
+    let faceNormals = baseFaceNormals.concat(poleFaceNormals, overhangFaceNormals, lampLightContainerFaceNormals);
+    let vertexNormals = baseVertexNormals.concat(poleVertexNormals, overhangVertexNormals, lampLightContainerVertexNormals);
+
+    return {
+        faces: faces,
+        colors: colors,
+        faceNormals: faceNormals,
+        vertexNormals: vertexNormals
+    };
+}
+
+// streetlight vars
+var streetlightVBuffers = [streetlightLeftVBuffer, streetlightRightVBuffer];
+var streetlightCBuffers = [streetlightLeftCBuffer, streetlightRightCBuffer];
+var streetlightNBuffers = [streetlightLeftNBuffer, streetlightRightNBuffer];
+
+var streetlightVertices = [];
+var streetlightColors = [];
+var streetlightFaceNormals = [];
+var streetlightVertexNormals = [];
+
+for (let i = 0; i < 2; i++)
+{
+    let streetlightData = generateStreetlight(i);
+    streetlightVertices.push(new Float32Array(flatten(streetlightData.faces)));
+    streetlightColors.push(new Float32Array(streetlightData.colors));
+    streetlightFaceNormals.push(new Float32Array(streetlightData.faceNormals));
+    streetlightVertexNormals.push(new Float32Array(streetlightData.vertexNormals));
+}
+
+// moon definition
+const moonVertices = new Float32Array([
     // Front
-    -0.25, 0.0,  0.1,    0.25, 0.0,  0.1,    0.25, 1.0,  0.1,
-    -0.25, 0.0,  0.1,    0.25, 1.0,  0.1,   -0.25, 1.0,  0.1,
+    -0.25, 0.0,  0.25,    0.25, 0.0,  0.25,    0.25, 0.5,  0.25,
+    -0.25, 0.0,  0.25,    0.25, 0.5,  0.25,   -0.25, 0.5,  0.25,
     // Back
-    -0.25, 0.0, -0.1,   -0.25, 1.0, -0.1,    0.25, 1.0, -0.1,
-    -0.25, 0.0, -0.1,    0.25, 1.0, -0.1,    0.25, 0.0, -0.1,
+    -0.25, 0.0, -0.25,   -0.25, 0.5, -0.25,    0.25, 0.5, -0.25,
+    -0.25, 0.0, -0.25,    0.25, 0.5, -0.25,    0.25, 0.0, -0.25,
     // Top
-    -0.25, 1.0,  0.1,    0.25, 1.0,  0.1,    0.25, 1.0, -0.1,
-    -0.25, 1.0,  0.1,    0.25, 1.0, -0.1,   -0.25, 1.0, -0.1,
+    -0.25, 0.5,  0.25,    0.25, 0.5,  0.25,    0.25, 0.5, -0.25,
+    -0.25, 0.5,  0.25,    0.25, 0.5, -0.25,   -0.25, 0.5, -0.25,
     // Bottom
-    -0.25, 0.0,  0.1,   -0.25, 0.0, -0.1,    0.25, 0.0, -0.1,
-    -0.25, 0.0,  0.1,    0.25, 0.0, -0.1,    0.25, 0.0,  0.1,
+    -0.25, 0.0,  0.25,   -0.25, 0.0, -0.25,    0.25, 0.0, -0.25,
+    -0.25, 0.0,  0.25,    0.25, 0.0, -0.25,    0.25, 0.0,  0.25,
     // Right
-    0.25, 0.0,  0.1,    0.25, 0.0, -0.1,    0.25, 1.0, -0.1,
-    0.25, 0.0,  0.1,    0.25, 1.0, -0.1,    0.25, 1.0,  0.1,
+    0.25, 0.0,  0.25,    0.25, 0.0, -0.25,    0.25, 0.5, -0.25,
+    0.25, 0.0,  0.25,    0.25, 0.5, -0.25,    0.25, 0.5,  0.25,
     // Left
-    -0.25, 0.0,  0.1,   -0.25, 1.0,  0.1,   -0.25, 1.0, -0.1,
-    -0.25, 0.0,  0.1,   -0.25, 1.0, -0.1,   -0.25, 0.0, -0.1
+    -0.25, 0.0,  0.25,   -0.25, 0.5,  0.25,   -0.25, 0.5, -0.25,
+    -0.25, 0.0,  0.25,   -0.25, 0.5, -0.25,   -0.25, 0.0, -0.25
 ]);
 
-const tombstoneColors = new Float32Array([
-    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
-    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
-    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
-    0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,  0.5, 0.5, 0.5, 1.0,
-    0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,
-    0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,  0.6, 0.6, 0.6, 1.0,
-    0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,
-    0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,  0.3, 0.3, 0.3, 1.0,
-    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,
-    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,
-    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,
-    0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0,  0.4, 0.4, 0.4, 1.0
-]);
-
-// lighting normals
-// The directions each face of the tombstone is pointing (X, Y, Z)
-const tombstoneNormals = new Float32Array([
+const moonNormals = new Float32Array([
     // Front Face points +Z (0, 0, 1)
     0.0, 0.0, 1.0,   0.0, 0.0, 1.0,   0.0, 0.0, 1.0,
     0.0, 0.0, 1.0,   0.0, 0.0, 1.0,   0.0, 0.0, 1.0,
@@ -285,6 +676,7 @@ window.onload = function init() {
 
     // draw mode
     drawMode = gl.TRIANGLES;
+    shadingMode = "flat";
 
     // floor buffers
     floorCBuffer = gl.createBuffer();
@@ -300,24 +692,14 @@ window.onload = function init() {
     gl.bindBuffer(gl.ARRAY_BUFFER, floorNBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, floorNormals, gl.STATIC_DRAW);
 
-    // tombstone buffers
-    tombstoneCBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneCBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, tombstoneColors, gl.STATIC_DRAW);
-
-    tombstoneVBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneVBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, tombstoneVertices, gl.STATIC_DRAW);
-
-    // tombstone normal buffer
-    tombstoneNBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneNBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, tombstoneNormals, gl.STATIC_DRAW);
-
     // Moon buffers
     moonCBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, moonColorArray, gl.STATIC_DRAW);
+    
+    moonVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, moonVertices, gl.STATIC_DRAW);
 
     // Tree buffers 
     for (let i = 0; i < 5; i++)
@@ -332,7 +714,23 @@ window.onload = function init() {
 
         treeNBuffers[i] = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, treeNBuffers[i]);
-        gl.bufferData(gl.ARRAY_BUFFER, treeNormals[i], gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, treeFaceNormals[i], gl.STATIC_DRAW);
+    }
+
+    // Streetlight buffers
+    for (let i = 0; i < 2; i++)
+    {
+        streetlightCBuffers[i] = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[i]);
+        gl.bufferData(gl.ARRAY_BUFFER, streetlightColors[i], gl.STATIC_DRAW);
+
+        streetlightVBuffers[i] = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[i]);
+        gl.bufferData(gl.ARRAY_BUFFER, streetlightVertices[i], gl.STATIC_DRAW);
+
+        streetlightNBuffers[i] = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[i]);
+        gl.bufferData(gl.ARRAY_BUFFER, streetlightFaceNormals[i], gl.STATIC_DRAW);
     }
 
     // Get Attributes
@@ -365,8 +763,40 @@ window.onload = function init() {
         if (key in keys) keys[key] = true;
 
         // switch shading mode
-        if (key === "1") drawMode = gl.TRIANGLES; // solid
-        if (key === "2") drawMode = gl.LINE_LOOP; // wireframe
+        if (key === "1") 
+        {
+            drawMode = gl.TRIANGLES; // solid
+            shadingMode = "flat";
+            for (let i = 0; i < 5; i++)
+            {
+                gl.bindBuffer(gl.ARRAY_BUFFER, treeNBuffers[i]);
+                gl.bufferData(gl.ARRAY_BUFFER, treeFaceNormals[i], gl.STATIC_DRAW);
+            }
+            for (let i = 0; i < 2; i++)
+            {
+                gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[i]);
+                gl.bufferData(gl.ARRAY_BUFFER, streetlightFaceNormals[i], gl.STATIC_DRAW);
+            }
+        }
+        if (key === "2")
+        {
+            drawMode = gl.TRIANGLES; // solid
+            shadingMode = "gourad";
+            for (let i = 0; i < 5; i++)
+            {
+                gl.bindBuffer(gl.ARRAY_BUFFER, treeNBuffers[i]);
+                gl.bufferData(gl.ARRAY_BUFFER, treeVertexNormals[i], gl.STATIC_DRAW);
+            }
+            for (let i = 0; i < 2; i++)
+            {
+                gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[i]);
+                gl.bufferData(gl.ARRAY_BUFFER, streetlightVertexNormals[i], gl.STATIC_DRAW);
+            }
+        }
+        if (key === "3") 
+        {
+            drawMode = gl.LINE_LOOP; // wireframe
+        }
     });
 
     window.addEventListener("keyup", function(event) {
@@ -474,7 +904,6 @@ function render() {
     gl.uniformMatrix4fv(uViewMatrix, false, flatten(viewMatrix));
 
     // setting light direction and passing to shader
-    // var lightDirection = [10.0, 15.0, -20.0];
     var lightDirection = [moonX, moonY, moonZ];
     gl.uniform3fv(uLightDirectionLoc, flatten(lightDirection));
 
@@ -497,38 +926,15 @@ function render() {
 
     gl.drawArrays(drawMode, 0, 6);
 
-    // Bind tombstone data - includes normal vector binding
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneCBuffer);
-    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneVBuffer);
-    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneNBuffer);
-    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
-
-    // Tombstone 1: Left
-    var modelMatrix1 = translate(-1.5, 0.0, -3.0);
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(modelMatrix1));
-    gl.drawArrays(drawMode, 0, 36);
-
-    // Tombstone 2: Right
-    var modelMatrix2 = translate(1.5, 0.0, -5.0);
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(modelMatrix2));
-    gl.drawArrays(drawMode, 0, 36);
-
-    // Tombstone 3: Center Distance
-    var modelMatrix3 = translate(0.0, 0.0, -8.0);
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(modelMatrix3));
-    gl.drawArrays(drawMode, 0, 36);
-
     // Bind moon data
     gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
     gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneVBuffer); // Cuboid shape for moon for now
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer); // Cuboid shape for moon for now
     gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
 
     // Moon
     var moveMoon = translate(moonX, moonY, moonZ);
-    var growMoon = scale(4.0, 2.0, 6.0);
+    var growMoon = scale(2.0, 2.0, 2.0);
     var moonModelMatrix = mult(moveMoon, growMoon);
 
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(moonModelMatrix));
@@ -550,6 +956,32 @@ function render() {
         gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(treeModelMatrix));
         gl.drawArrays(drawMode, 0, treeVertices[treeType-1].length / 3);
     }
+
+    // Streetlight
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[0]);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[0]);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[0]);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+    var shrinkLamp = scale(1.0, 1.0, 1.0);
+    var transLamp = translate(3, 0, -2);
+    var lampModelMatrix = mult(transLamp, shrinkLamp);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
+    gl.drawArrays(drawMode, 0, streetlightVertices[0].length / 3);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[1]);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[1]);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[1]);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+    var shrinkLamp = scale(1.0, 1.0, 1.0);
+    var transLamp = translate(-4, 0, -4);
+    var lampModelMatrix = mult(transLamp, shrinkLamp);
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
+    gl.drawArrays(drawMode, 0, streetlightVertices[1].length / 3);
 
     requestAnimFrame(render); 
 }
