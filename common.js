@@ -493,7 +493,7 @@ function perspective(fovy, aspect, near, far)
 
 // importing mesh for car
 // specifically for car due to .obj file format
-async function loadOBJ(url, color) {
+async function loadCarOBJ(url, color) {
     const response = await fetch(url);
     const text = await response.text();
 
@@ -505,6 +505,10 @@ async function loadOBJ(url, color) {
     const finalVertices = [];
     const finalNormals = [];
     const finalColors = [];
+    const finalFaceNormals = [];
+
+    const triangles = [];
+    const vertexNormalSums = [];
 
     // Define colors for the materials in your OBJ
     const materials = {
@@ -532,6 +536,7 @@ async function loadOBJ(url, color) {
 
         if (type === 'v') {
             tempVertices.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+            vertexNormalSums.push([0, 0, 0]);
         } 
         else if (type === 'vn') {
             tempNormals.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
@@ -551,42 +556,79 @@ async function loadOBJ(url, color) {
                 const indices = parts[i].split('/'); 
                 // OBJ is 1-indexed, subtract 1
                 const vIndex = parseInt(indices[0]) - 1; 
-                // The normal index is the last part
-                const vnIndex = parseInt(indices[indices.length - 1]) - 1; 
+                // vn can be missing; treat as -1 in that case
+                const lastIndexToken = indices[indices.length - 1];
+                const vnIndex = lastIndexToken !== "" && indices.length > 1 ? parseInt(lastIndexToken) - 1 : -1;
                 faceVertices.push({ v: vIndex, vn: vnIndex });
             }
 
             // triangulate N-gons using a Triangle Fan
-            // face with N vertices creates N-2 triangles
-            // one line has n face vertices with diff indices, we use those to build the triagnles
             for (let i = 1; i < faceVertices.length - 1; i++) {
-                const v0 = faceVertices[0];
-                const v1 = faceVertices[i];
-                const v2 = faceVertices[i + 1];
-
-                const tri = [v0, v1, v2];
-
-                for (let j = 0; j < 3; j++) {
-                    const vert = tempVertices[tri[j].v];
-                    const norm = tempNormals[tri[j].vn];
-
-                    finalVertices.push(vert[0], vert[1], vert[2]);
-                    if (norm) {
-                        finalNormals.push(norm[0], norm[1], norm[2]);
-                    } else {
-                        // Fallback normal pointing up if none exists
-                        finalNormals.push(0, 1, 0); 
-                    }
-                    finalColors.push(currentColor[0], currentColor[1], currentColor[2], currentColor[3]);
-                }
+                triangles.push({
+                    verts: [faceVertices[0], faceVertices[i], faceVertices[i + 1]],
+                    color: [currentColor[0], currentColor[1], currentColor[2], currentColor[3]]
+                });
             }
+        }
+    }
+
+    // Pass 2: compute face normals and accumulate for smooth vertex normals.
+    for (let i = 0; i < triangles.length; i++) {
+        const tri = triangles[i].verts;
+        const p0 = tempVertices[tri[0].v];
+        const p1 = tempVertices[tri[1].v];
+        const p2 = tempVertices[tri[2].v];
+
+        const edge1 = vectorDifference(p1, p0);
+        const edge2 = vectorDifference(p2, p0);
+        let faceNormal = crossProduct(edge1, edge2);
+        const lenSq = dotProduct(faceNormal, faceNormal);
+        if (lenSq > 0) {
+            faceNormal = normalizeVector(faceNormal);
+        } else {
+            faceNormal = [0, 1, 0];
+        }
+
+        triangles[i].faceNormal = faceNormal;
+
+        for (let j = 0; j < 3; j++) {
+            const vi = tri[j].v;
+            vertexNormalSums[vi][0] += faceNormal[0];
+            vertexNormalSums[vi][1] += faceNormal[1];
+            vertexNormalSums[vi][2] += faceNormal[2];
+        }
+    }
+
+    // Pass 3: emit final arrays; prefer OBJ vn if present, otherwise computed smooth normal.
+    for (let i = 0; i < triangles.length; i++) {
+        const tri = triangles[i].verts;
+        const triColor = triangles[i].color;
+        const triFaceNormal = triangles[i].faceNormal;
+
+        for (let j = 0; j < 3; j++) {
+            const vertIndex = tri[j].v;
+            const vert = tempVertices[vertIndex];
+            const vnIndex = tri[j].vn;
+            let normal = vnIndex >= 0 ? tempNormals[vnIndex] : null;
+
+            if (!normal) {
+                const summed = vertexNormalSums[vertIndex];
+                const summedLenSq = dotProduct(summed, summed);
+                normal = summedLenSq > 0 ? normalizeVector(summed) : triFaceNormal;
+            }
+
+            finalVertices.push(vert[0], vert[1], vert[2]);
+            finalNormals.push(normal[0], normal[1], normal[2]);
+            finalColors.push(triColor[0], triColor[1], triColor[2], triColor[3]);
+            finalFaceNormals.push(triFaceNormal[0], triFaceNormal[1], triFaceNormal[2]);
         }
     }
 
     return {
         vertices: new Float32Array(finalVertices),
-        normals: new Float32Array(finalNormals),
-        colors: new Float32Array(finalColors)
+        vertexNormals: new Float32Array(finalNormals),
+        colors: new Float32Array(finalColors),
+        faceNormals: new Float32Array(finalFaceNormals)
     };
 }
 
@@ -601,6 +643,10 @@ async function loadCorpseOBJ(url, color) {
     const finalVertices = [];
     const finalNormals = [];
     const finalColors = [];
+    const finalFaceNormals = [];
+
+    const triangles = [];
+    const vertexNormalSums = [];
 
     const materials = {
         "Blue Grey": [0.2, 0.25, 0.32, 1.0], // Muddy blue
@@ -624,6 +670,7 @@ async function loadCorpseOBJ(url, color) {
 
         if (type === 'v') {
             tempVertices.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+            vertexNormalSums.push([0, 0, 0]);
         } 
         else if (type === 'vt') {
             // Store texture coordinates (U, V)
@@ -651,32 +698,66 @@ async function loadCorpseOBJ(url, color) {
                 faceVertices.push({ v: vIndex, vt: vtIndex });
             }
             // triangulate N-gons using a Triangle Fan
-            // face with N vertices creates N-2 triangles
-            // one line has n face vertices with diff indices, we use those to build the triagnles
             for (let i = 1; i < faceVertices.length - 1; i++) {
-                const v0 = faceVertices[0].v;
-                const v1 = faceVertices[i].v;
-                const v2 = faceVertices[i + 1].v;
-
-                const tri = [tempVertices[v0], tempVertices[v1], tempVertices[v2]];
-
-                // calculating face normals with cross product of two edges
-                const edge1 = vectorDifference(tri[1], tri[0]);
-                const edge2 = vectorDifference(tri[2], tri[0]);
-                const faceNormal = normalizeVector(crossProduct(edge1, edge2));
-
-                for (let j = 0; j < 3; j++) {
-                    const vert = tri[j];
-                    finalVertices.push(vert[0], vert[1], vert[2]);
-                    finalNormals.push(faceNormal[0], faceNormal[1], faceNormal[2]);
-                    finalColors.push(currentColor[0], currentColor[1], currentColor[2], currentColor[3]);
-                }
+                triangles.push({
+                    verts: [faceVertices[0], faceVertices[i], faceVertices[i + 1]],
+                    color: [currentColor[0], currentColor[1], currentColor[2], currentColor[3]]
+                });
             }
         }
     }
+
+    // Pass 2: compute face normals and accumulate per-vertex normals.
+    for (let i = 0; i < triangles.length; i++) {
+        const tri = triangles[i].verts;
+        const p0 = tempVertices[tri[0].v];
+        const p1 = tempVertices[tri[1].v];
+        const p2 = tempVertices[tri[2].v];
+
+        const edge1 = vectorDifference(p1, p0);
+        const edge2 = vectorDifference(p2, p0);
+        let faceNormal = crossProduct(edge1, edge2);
+        const lenSq = dotProduct(faceNormal, faceNormal);
+        if (lenSq > 0) {
+            faceNormal = normalizeVector(faceNormal);
+        } else {
+            faceNormal = [0, 1, 0];
+        }
+
+        triangles[i].faceNormal = faceNormal;
+
+        for (let j = 0; j < 3; j++) {
+            const vi = tri[j].v;
+            vertexNormalSums[vi][0] += faceNormal[0];
+            vertexNormalSums[vi][1] += faceNormal[1];
+            vertexNormalSums[vi][2] += faceNormal[2];
+        }
+    }
+
+    // Pass 3: emit smooth vertex normals and also expose per-triangle face normals.
+    for (let i = 0; i < triangles.length; i++) {
+        const tri = triangles[i].verts;
+        const triColor = triangles[i].color;
+        const triFaceNormal = triangles[i].faceNormal;
+
+        for (let j = 0; j < 3; j++) {
+            const vertIndex = tri[j].v;
+            const vert = tempVertices[vertIndex];
+            const summed = vertexNormalSums[vertIndex];
+            const summedLenSq = dotProduct(summed, summed);
+            const vertexNormal = summedLenSq > 0 ? normalizeVector(summed) : triFaceNormal;
+
+            finalVertices.push(vert[0], vert[1], vert[2]);
+            finalNormals.push(vertexNormal[0], vertexNormal[1], vertexNormal[2]);
+            finalColors.push(triColor[0], triColor[1], triColor[2], triColor[3]);
+            finalFaceNormals.push(triFaceNormal[0], triFaceNormal[1], triFaceNormal[2]);
+        }
+    }
+
     return {
         vertices: new Float32Array(finalVertices),
-        normals: new Float32Array(finalNormals),
-        colors: new Float32Array(finalColors)
+        vertexNormals: new Float32Array(finalNormals),
+        colors: new Float32Array(finalColors),
+        faceNormals: new Float32Array(finalFaceNormals)
     };
 }

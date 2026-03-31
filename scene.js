@@ -13,7 +13,7 @@ var corpseVertexCount = 0;
 // fog vars
 var fogColor = new Float32Array([0.3, 0.3, 0.3, 1.0]); // dark grey
 var fogNear = 3.0;  
-var fogFar = 12.0; 
+var fogFar = 120.0; 
 var uFogColorLoc, uFogNearLoc, uFogFarLoc;
 
 // buffer vars
@@ -47,13 +47,13 @@ var camY = 0.6;
 var camZ = 5.0;
 
 // car1 position
-var car1X = -1.2;
+var car1X = 1.2;
 var car1Y = 0.0;
 var car1Z = -10.0;
 
 // corpse position
-var corpseX = -2.0;
-var corpseY = 0.25;
+var corpseX = 0.4;
+var corpseY = 0.15;
 var corpseZ = -10.0;
 
 // car scale
@@ -67,8 +67,8 @@ var carRotation = -20;
 
 // moon position
 var moonX = 0.0;
-var moonY = 10.0;
-var moonZ = -25.0;
+var moonY = 20.0;
+var moonZ = 0.0;
 
 // lighting vars
 var vNormalLoc;
@@ -304,17 +304,52 @@ for (let i = 1; i <= 5; i++)
     treeVertexNormals.push(new Float32Array(treeData.vertexNormals));
 }
 
-const numTrees = 100;
+const numTrees = 300;
 const treeTypeArray = [];
 const treeLocations = [];
 
-for (let i = 0; i < numTrees; i++)
+const columns = 8;
+const columnX = [];
+for (let i = 0; i < columns; i++)
 {
-    let treeType = Math.floor(Math.random() * 5) + 1; 
-    treeTypeArray.push(treeType);
-    let x = Math.random()*20 - 10;
-    x = x < 0 ? x - 3.31 : x + 3.31;
-    treeLocations.push([x, 0, Math.random() * 40 - 20]);
+    if (i < columns/2)
+    {
+        columnX.push(-roadWidth*1.8 + (i) * (roadWidth*2.5/columns));
+    }
+    else
+    {
+        columnX.push(roadWidth*1.8 - (columns - i) * (roadWidth*2.5/columns));
+    }
+}
+const rows = Math.ceil(numTrees / columns);
+const columnZ = [];
+for (let i = 0; i < rows; i++)
+{
+    if (i < rows/2)
+    {
+        columnZ.push(-roadLength/2 + (i + 0.5) * (roadLength/rows));
+    }
+    else if (i == 0)
+    {
+        columnZ.push(0);
+    }
+    else
+    {
+        columnZ.push(roadLength/2 - (rows - i - 0.5) * (roadLength/rows));
+    }
+}
+
+for (let i = 0; i < columns; i++)
+{
+    for (let j = 0; j < rows; j++)
+    {
+        if (treeLocations.length < numTrees)
+        {
+            let treeType = Math.floor(Math.random() * 5) + 1;
+            treeTypeArray.push(treeType);
+            treeLocations.push([columnX[i] + Math.random() * (roadWidth*2/columns * 0.75), 0, columnZ[j] + Math.random() * (roadLength/rows * 0.65)]);
+        }
+    }
 }
 
 function generateStreetlight(dir) // dir = 0 for left, 1 for right
@@ -580,11 +615,11 @@ function generateStreetlight(dir) // dir = 0 for left, 1 for right
         let angle = (i/4.0) * 2 * Math.PI + Math.PI/4;
         let x = origin[0] + 2* lampOverhangWidth * Math.cos(angle);
         x = dir == 1 ? x + lampOverhangLength - lampOverhangWidth : x - lampOverhangLength + lampOverhangWidth;
-        let z = origin[2] + lampOverhangWidth * Math.sin(angle);
-        lampLightContainerVertices.push([x, origin[1] + lampHeight - lampOverhangThickness*1.5, z]);
+        let z = origin[2] + 2* lampOverhangWidth * Math.sin(angle);
+        lampLightContainerVertices.push([x, origin[1] + lampHeight - lampOverhangThickness*2, z]);
         lampLightContainerVerticesInFaces.push([]);
     }
-    lampLightContainerVertices.push([origin[0] + (dir == 1 ? lampOverhangLength - lampOverhangWidth : -lampOverhangLength + lampOverhangWidth), origin[1] + lampHeight - lampOverhangThickness, origin[2]]);
+    lampLightContainerVertices.push([origin[0] + (dir == 1 ? lampOverhangLength - lampOverhangWidth : -lampOverhangLength + lampOverhangWidth), origin[1] + lampHeight - lampOverhangThickness/2, origin[2]]);
     lampLightContainerVerticesInFaces.push([]);
 
     let lampLightContainerFaces = [];
@@ -728,7 +763,7 @@ window.onload = async function init() {
     gl.enable(gl.DEPTH_TEST);
 
     // loading car1
-    const car1Data = await loadOBJ('/models/Car.obj', "Green"); 
+    const car1Data = await loadCarOBJ('/models/Car.obj', "Green"); 
     carVertexCount = car1Data.vertices.length / 3; // 3 components per vertex
 
     // loading corpse1
@@ -813,7 +848,7 @@ window.onload = async function init() {
 
     carNBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, carNBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, car1Data.normals, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, car1Data.faceNormals, gl.STATIC_DRAW);
 
     // corpse buffers
     corpseCBuffer = gl.createBuffer();
@@ -826,7 +861,7 @@ window.onload = async function init() {
 
     corpseNBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, corpseNBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.normals, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.faceNormals, gl.STATIC_DRAW);
 
     // Get Attributes
     vPositionLoc = gl.getAttribLocation(program, "vPosition");
@@ -873,6 +908,10 @@ window.onload = async function init() {
                 gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[i]);
                 gl.bufferData(gl.ARRAY_BUFFER, streetlightFaceNormals[i], gl.STATIC_DRAW);
             }
+            gl.bindBuffer(gl.ARRAY_BUFFER, carNBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, car1Data.faceNormals, gl.STATIC_DRAW);
+            gl.bindBuffer(gl.ARRAY_BUFFER, corpseNBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.faceNormals, gl.STATIC_DRAW);
         }
         if (key === "2")
         {
@@ -888,6 +927,10 @@ window.onload = async function init() {
                 gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[i]);
                 gl.bufferData(gl.ARRAY_BUFFER, streetlightVertexNormals[i], gl.STATIC_DRAW);
             }
+            gl.bindBuffer(gl.ARRAY_BUFFER, carNBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, car1Data.vertexNormals, gl.STATIC_DRAW);
+            gl.bindBuffer(gl.ARRAY_BUFFER, corpseNBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.vertexNormals, gl.STATIC_DRAW);
         }
         if (key === "3") 
         {
@@ -1100,7 +1143,7 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[0]);
     gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
     var shrinkLamp = scale(1.0, 1.0, 1.0);
-    var transLamp = translate(3, 0, -2);
+    var transLamp = translate(1.7, 0, -10);
     var lampModelMatrix = mult(transLamp, shrinkLamp);
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
     gl.drawArrays(drawMode, 0, streetlightVertices[0].length / 3);
@@ -1112,7 +1155,7 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[1]);
     gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
     var shrinkLamp = scale(1.0, 1.0, 1.0);
-    var transLamp = translate(-4, 0, -4);
+    var transLamp = translate(-2.7, 0, -4);
     var lampModelMatrix = mult(transLamp, shrinkLamp);
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
     gl.drawArrays(drawMode, 0, streetlightVertices[1].length / 3);
