@@ -2,17 +2,25 @@
 var gl, canvas;
 var uProjectionMatrix, uViewMatrix, uModelMatrixLoc;
 
+// car vars
+var carVBuffer, carCBuffer, carNBuffer;
+var carVertexCount = 0; 
+
+// corpse vars
+var corpseVBuffer, corpseCBuffer, corpseNBuffer;
+var corpseVertexCount = 0;
+
 // fog vars
-var fogColor = new Float32Array([0.2, 0.2, 0.2, 1.0]); // dark grey
-var fogNear = 3.0;  
-var fogFar = 10.0; 
+var fogColor = new Float32Array([0.3, 0.3, 0.3, 1.0]);
+var fogNear = 3.0;  // fog starts from camera
+var fogFar = 12.0;  // fog completely covers object
 var uFogColorLoc, uFogNearLoc, uFogFarLoc;
 
 // buffer vars
-var floorVBuffer, floorCBuffer, floorNBuffer;
+var roadVBuffer, roadCBuffer, roadNBuffer;
 var tombstoneVBuffer, tombstoneCBuffer, tombstoneNBuffer;
-var moonCBuffer;
-var  tree1VBuffer, tree1CBuffer, tree1NBuffer;
+var moonCBuffer, moonVBuffer;
+var tree1VBuffer, tree1CBuffer, tree1NBuffer;
 var tree2VBuffer, tree2CBuffer, tree2NBuffer;
 var tree3VBuffer, tree3CBuffer, tree3NBuffer;
 var tree4VBuffer, tree4CBuffer, tree4NBuffer;
@@ -34,8 +42,27 @@ let bobCounter = 0;
 
 // initial cam position
 var camX = 0.0;
-var camY = 0.45;
+var camY = 0.6;
 var camZ = 5.0;
+
+// car1 position
+var car1X = -1.2;
+var car1Y = 0.0;
+var car1Z = -10.0;
+
+// corpse position
+var corpseX = -2.0;
+var corpseY = 0.25;
+var corpseZ = -10.0;
+
+// car scale
+var carScale = 0.4;
+
+// corpse scale
+var corpseScale = 0.3;
+
+// car rotation
+var carRotation = -20;
 
 // moon position
 var moonX = 0.0;
@@ -49,23 +76,52 @@ var uLightDirectionLoc;
 // shading var
 var drawMode;
 
-// floor def
-const floorVertices = new Float32Array([
-    -3.0, 0.0, -20.0,  
-     3.0, 0.0, -20.0,  
-    -3.0, 0.0,  20.0,  
-    -3.0, 0.0,  20.0,  
-     3.0, 0.0, -20.0,  
-     3.0, 0.0,  20.0   
+// road variables
+var roadWidth = 4.0;
+var roadLength = 80.0;
+var stripWidth = 0.1;
+
+// road def
+const roadVertices = new Float32Array([
+    -roadWidth/2, 0.0, -roadLength/2,  
+    -stripWidth/2, 0.0, -roadLength/2,  
+    -roadWidth/2, 0.0,  roadLength/2,  
+    -roadWidth/2, 0.0,  roadLength/2,  
+    -stripWidth/2, 0.0, -roadLength/2,  
+    -stripWidth/2, 0.0,  roadLength/2,
+
+    -stripWidth/2, 0.0, -roadLength/2,
+    stripWidth/2, 0.0, -roadLength/2,
+    -stripWidth/2, 0.0,  roadLength/2,
+    -stripWidth/2, 0.0,  roadLength/2,
+    stripWidth/2, 0.0, -roadLength/2,
+    stripWidth/2, 0.0,  roadLength/2,
+
+    stripWidth/2, 0.0, -roadLength/2,  
+    roadWidth/2, 0.0, -roadLength/2,  
+    stripWidth/2, 0.0,  roadLength/2,  
+    stripWidth/2, 0.0,  roadLength/2,  
+    roadWidth/2, 0.0, -roadLength/2,  
+    roadWidth/2, 0.0,  roadLength/2   
 ]);
 
-const floorColors = new Float32Array([
-    0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0,
-    0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0,   0.2, 0.2, 0.2, 1.0
+const roadColors = new Float32Array([
+    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+
+    0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,
+    0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,
+
+    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0
 ]);
 
 // points to the sky for the normal
-const floorNormals = new Float32Array([
+const roadNormals = new Float32Array([
+    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0
 ]);
@@ -269,15 +325,45 @@ for (let i = 0; i < 144; i += 4) {
     moonColorArray[i+3] = 1.0;   // Alpha
 }
 
-window.onload = function init() {
+const moonVertices = new Float32Array([
+    // Front
+    -0.25, 0.0,  0.25,    0.25, 0.0,  0.25,    0.25, 0.5,  0.25,
+    -0.25, 0.0,  0.25,    0.25, 0.5,  0.25,   -0.25, 0.5,  0.25,
+    // Back
+    -0.25, 0.0, -0.25,   -0.25, 0.5, -0.25,    0.25, 0.5, -0.25,
+    -0.25, 0.0, -0.25,    0.25, 0.5, -0.25,    0.25, 0.0, -0.25,
+    // Top
+    -0.25, 0.5,  0.25,    0.25, 0.5,  0.25,    0.25, 0.5, -0.25,
+    -0.25, 0.5,  0.25,    0.25, 0.5, -0.25,   -0.25, 0.5, -0.25,
+    // Bottom
+    -0.25, 0.0,  0.25,   -0.25, 0.0, -0.25,    0.25, 0.0, -0.25,
+    -0.25, 0.0,  0.25,    0.25, 0.0, -0.25,    0.25, 0.0,  0.25,
+    // Right
+    0.25, 0.0,  0.25,    0.25, 0.0, -0.25,    0.25, 0.5, -0.25,
+    0.25, 0.0,  0.25,    0.25, 0.5, -0.25,    0.25, 0.5,  0.25,
+    // Left
+    -0.25, 0.0,  0.25,   -0.25, 0.5,  0.25,   -0.25, 0.5, -0.25,
+    -0.25, 0.0,  0.25,   -0.25, 0.5, -0.25,   -0.25, 0.0, -0.25
+]);
+
+window.onload = async function init() {
     canvas = document.querySelector("#gl-canvas");
     gl = WebGLUtils.setupWebGL(canvas);
     if (!gl) { alert("WebGL isn't available :("); }
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     // gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    // initialize the bg with fog color to maintain fog effect
     gl.clearColor(fogColor[0], fogColor[1], fogColor[2], fogColor[3]);
     gl.enable(gl.DEPTH_TEST);
+
+    // loading car1
+    const car1Data = await loadOBJ('/models/Car.obj', "Green"); 
+    carVertexCount = car1Data.vertices.length / 3; // 3 components per vertex
+
+    // loading corpse1
+    const corpse1Data = await loadCorpseOBJ('/models/Corpse.obj', "Dark Brown");
+    corpseVertexCount = corpse1Data.vertices.length / 3; // 3 components per vertex
 
     // Initialize Shaders
     var program = initShaders(gl, "vertex-shader", "fragment-shader");
@@ -286,19 +372,19 @@ window.onload = function init() {
     // draw mode
     drawMode = gl.TRIANGLES;
 
-    // floor buffers
-    floorCBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, floorCBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, floorColors, gl.STATIC_DRAW);
+    // road buffers
+    roadCBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, roadCBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, roadColors, gl.STATIC_DRAW);
 
-    floorVBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, floorVBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, floorVertices, gl.STATIC_DRAW);
+    roadVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, roadVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, roadVertices, gl.STATIC_DRAW);
 
-    // floor normal buffer
-    floorNBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, floorNBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, floorNormals, gl.STATIC_DRAW);
+    // road normal buffer
+    roadNBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, roadNBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, roadNormals, gl.STATIC_DRAW);
 
     // tombstone buffers
     tombstoneCBuffer = gl.createBuffer();
@@ -319,6 +405,10 @@ window.onload = function init() {
     gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, moonColorArray, gl.STATIC_DRAW);
 
+    moonVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, moonVertices, gl.STATIC_DRAW);
+
     // Tree buffers 
     for (let i = 0; i < 5; i++)
     {
@@ -335,6 +425,32 @@ window.onload = function init() {
         gl.bufferData(gl.ARRAY_BUFFER, treeNormals[i], gl.STATIC_DRAW);
     }
 
+    // car buffers
+    carCBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, carCBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, car1Data.colors, gl.STATIC_DRAW);
+
+    carVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, carVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, car1Data.vertices, gl.STATIC_DRAW);
+
+    carNBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, carNBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, car1Data.normals, gl.STATIC_DRAW);
+
+    // corpse buffers
+    corpseCBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, corpseCBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.colors, gl.STATIC_DRAW);
+
+    corpseVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, corpseVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.vertices, gl.STATIC_DRAW);
+
+    corpseNBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, corpseNBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, corpse1Data.normals, gl.STATIC_DRAW);
+
     // Get Attributes
     vPositionLoc = gl.getAttribLocation(program, "vPosition");
     vColorLoc = gl.getAttribLocation(program, "vColor");
@@ -348,6 +464,7 @@ window.onload = function init() {
     uModelMatrixLoc = gl.getUniformLocation(program, "uModelMatrix");
     uViewMatrix = gl.getUniformLocation(program, "uViewMatrix");
     uProjectionMatrix = gl.getUniformLocation(program, "uProjectionMatrix");
+    // fog uniform locs
     uFogColorLoc = gl.getUniformLocation(program, "uFogColor");
     uFogNearLoc = gl.getUniformLocation(program, "uFogNear");
     uFogFarLoc = gl.getUniformLocation(program, "uFogFar");
@@ -478,24 +595,25 @@ function render() {
     var lightDirection = [moonX, moonY, moonZ];
     gl.uniform3fv(uLightDirectionLoc, flatten(lightDirection));
 
+    // setting fog uniforms
     gl.uniform4fv(uFogColorLoc, fogColor);
     gl.uniform1f(uFogNearLoc, fogNear);
     gl.uniform1f(uFogFarLoc, fogFar);
 
-    // --- DRAW THE FLOOR ---
-    // The floor uses an identity matrix (no movement)
+    // --- DRAW THE road ---
+    // The road uses an identity matrix (no movement)
     var identityMatrix = mat4();
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(identityMatrix));
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, floorCBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, roadCBuffer);
     gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, floorVBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, roadVBuffer);
     gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, floorNBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, roadNBuffer);
     gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
 
-    gl.drawArrays(drawMode, 0, 6);
+    gl.drawArrays(drawMode, 0, roadVertices.length / 3);
 
     // Bind tombstone data - includes normal vector binding
     gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneCBuffer);
@@ -523,7 +641,7 @@ function render() {
     // Bind moon data
     gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
     gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, tombstoneVBuffer); // Cuboid shape for moon for now
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer); // Cuboid shape for moon for now
     gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
 
     // Moon
@@ -533,6 +651,43 @@ function render() {
 
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(moonModelMatrix));
     gl.drawArrays(drawMode, 0, 36);
+
+    // bind car data
+    gl.bindBuffer(gl.ARRAY_BUFFER, carCBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, carVBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, carNBuffer);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+    
+    // Car
+    var scaleCar = scale(carScale, carScale, carScale);
+    var rotateCar = rotateY(carRotation);
+    var moveCar = translate(car1X, car1Y, car1Z);
+    var carModelMatrix = mult(moveCar, mult(rotateCar, scaleCar));
+
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(carModelMatrix));
+    gl.drawArrays(drawMode, 0, carVertexCount);
+
+    // bind corpse data
+    gl.bindBuffer(gl.ARRAY_BUFFER, corpseCBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, corpseVBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, corpseNBuffer);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+    
+    // Corpse
+    var scaleCorpse = scale(corpseScale, corpseScale, corpseScale);
+    var moveCorpse = translate(corpseX, corpseY, corpseZ);
+    var corpseModelMatrix = mult(moveCorpse, scaleCorpse);
+
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(corpseModelMatrix));
+    gl.drawArrays(drawMode, 0, corpseVertexCount);
 
     // Trees
     for (let i = 0; i < numTrees; i++)

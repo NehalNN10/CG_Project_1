@@ -70,6 +70,7 @@
 
             float fogFactor = (uFogFar - vDistance) / (uFogFar - uFogNear);
             fogFactor = clamp(fogFactor, 0.0, 1.0);
+            // mix() linearly interpolates based on the fog factor
             gl_FragColor = mix(uFogColor, fColor, fogFactor);
         }
     </script>
