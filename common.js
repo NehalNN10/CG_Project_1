@@ -490,3 +490,193 @@ function perspective(fovy, aspect, near, far)
 
     return result;
 }
+
+// importing mesh for car
+// specifically for car due to .obj file format
+async function loadOBJ(url, color) {
+    const response = await fetch(url);
+    const text = await response.text();
+
+    const tempVertices = [];
+    // these are vertex normals, not face normals
+    // lighting is preferred to be done with vertex normals (smooth shading)
+    const tempNormals = [];
+
+    const finalVertices = [];
+    const finalNormals = [];
+    const finalColors = [];
+
+    // Define colors for the materials in your OBJ
+    const materials = {
+        "Green": [0.15, 0.25, 0.2, 1.0], // Murky green
+        "Blue": [0.2, 0.25, 0.32, 1.0], // Muddy blue
+        "Black": [0.1, 0.1, 0.1, 1.0],  // Dark grey/black
+        "Window": [0.2, 0.2, 0.3, 1.0], // Dark blueish glass
+        "Bumpers": [0.5, 0.5, 0.5, 1.0], // Chrome/Grey
+        "Wheels": [0.5, 0.5, 0.5, 1.0], // grey rim
+        "Lights": [1.0, 0.8, 0.6, 1.0], // Warm light color
+        "Bottom": [0.3, 0.1, 0.1, 1.0], // Darker red for undercarriage
+        "Tires": [0.05, 0.05, 0.05, 1.0], // Very dark rubber
+    };
+    
+    // Default color if a material is missing
+    let currentColor = [0.8, 0.8, 0.8, 1.0]; 
+
+    const lines = text.split('\n');
+    for (let line of lines) {
+        line = line.trim();
+        if (line === '' || line.startsWith('#')) continue;
+
+        const parts = line.split(/\s+/);
+        const type = parts[0];
+
+        if (type === 'v') {
+            tempVertices.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+        } 
+        else if (type === 'vn') {
+            tempNormals.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+        } 
+        else if (type === 'usemtl') {
+            const matName = parts[1];
+            if (matName == "Body"){
+                currentColor = materials[color];
+            }
+            else {currentColor = materials[matName];}
+        } 
+        else if (type === 'f') {
+            // parsing face data
+            const faceVertices = [];
+            for (let i = 1; i < parts.length; i++) {
+                // Split v//vn or v/vt/vn
+                const indices = parts[i].split('/'); 
+                // OBJ is 1-indexed, subtract 1
+                const vIndex = parseInt(indices[0]) - 1; 
+                // The normal index is the last part
+                const vnIndex = parseInt(indices[indices.length - 1]) - 1; 
+                faceVertices.push({ v: vIndex, vn: vnIndex });
+            }
+
+            // triangulate N-gons using a Triangle Fan
+            // face with N vertices creates N-2 triangles
+            // one line has n face vertices with diff indices, we use those to build the triagnles
+            for (let i = 1; i < faceVertices.length - 1; i++) {
+                const v0 = faceVertices[0];
+                const v1 = faceVertices[i];
+                const v2 = faceVertices[i + 1];
+
+                const tri = [v0, v1, v2];
+
+                for (let j = 0; j < 3; j++) {
+                    const vert = tempVertices[tri[j].v];
+                    const norm = tempNormals[tri[j].vn];
+
+                    finalVertices.push(vert[0], vert[1], vert[2]);
+                    if (norm) {
+                        finalNormals.push(norm[0], norm[1], norm[2]);
+                    } else {
+                        // Fallback normal pointing up if none exists
+                        finalNormals.push(0, 1, 0); 
+                    }
+                    finalColors.push(currentColor[0], currentColor[1], currentColor[2], currentColor[3]);
+                }
+            }
+        }
+    }
+
+    return {
+        vertices: new Float32Array(finalVertices),
+        normals: new Float32Array(finalNormals),
+        colors: new Float32Array(finalColors)
+    };
+}
+
+
+async function loadCorpseOBJ(url, color) {
+    const response = await fetch(url);
+    const text = await response.text();
+
+    const tempVertices = [];
+    const tempUVs = [];
+
+    const finalVertices = [];
+    const finalNormals = [];
+    const finalColors = [];
+
+    const materials = {
+        "Blue Grey": [0.2, 0.25, 0.32, 1.0], // Muddy blue
+        "Dark Brown": [0.3, 0.2, 0.1, 1.0], // Fleshy brown
+        "mat_0-Corpse_head_D.jpg": [0.5, 0.4, 0.3, 1.0],     // fleshy dark brown skin
+        "mat_1-Corpse_hair_D.jpg": [0.1, 0.1, 0.1, 1.0],     // Greasy black/grey hair
+        "mat_2-Corpse_clothing_D.jpg": [0.2, 0.2, 0.3, 1.0], // Muddy blue
+        "mat_3-Corpse_skin_D.jpg": [0.5, 0.4, 0.3, 1.0],     // Matching body skin
+        "mat_4-default-grey.jpg": [0.5, 0.5, 0.5, 1.0]       // Fallback
+    };
+    
+    let currentColor = [0.8, 0.8, 0.8, 1.0];
+
+    const lines = text.split('\n');
+    for (let line of lines) {
+        line = line.trim();
+        if (line === '' || line.startsWith('#')) continue;
+
+        const parts = line.split(/\s+/);
+        const type = parts[0];
+
+        if (type === 'v') {
+            tempVertices.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+        } 
+        else if (type === 'vt') {
+            // Store texture coordinates (U, V)
+            tempUVs.push([parseFloat(parts[1]), parseFloat(parts[2])]);
+        }
+        else if (type === 'usemtl') {
+            const matName = parts[1];
+            if (matName == "mat_2-Corpse_clothing_D.jpg"){
+                currentColor = materials[color]; // Use the same color for head and skin
+            }
+            else if (materials[matName]) {
+                currentColor = materials[matName];
+            } else {
+                currentColor = materials["mat_4-default-grey.jpg"]; // Fallback color
+            }
+        }
+        else if (type === 'f') {
+            const faceVertices = [];
+            for (let i = 1; i < parts.length; i++) {
+                // Split v/vt format
+                const indices = parts[i].split('/'); 
+                const vIndex = parseInt(indices[0]) - 1; 
+                // We parse vt just to have it, though we don't push it to WebGL yet
+                const vtIndex = indices.length > 1 && indices[1] !== "" ? parseInt(indices[1]) - 1 : -1; 
+                faceVertices.push({ v: vIndex, vt: vtIndex });
+            }
+            // triangulate N-gons using a Triangle Fan
+            // face with N vertices creates N-2 triangles
+            // one line has n face vertices with diff indices, we use those to build the triagnles
+            for (let i = 1; i < faceVertices.length - 1; i++) {
+                const v0 = faceVertices[0].v;
+                const v1 = faceVertices[i].v;
+                const v2 = faceVertices[i + 1].v;
+
+                const tri = [tempVertices[v0], tempVertices[v1], tempVertices[v2]];
+
+                // calculating face normals with cross product of two edges
+                const edge1 = vectorDifference(tri[1], tri[0]);
+                const edge2 = vectorDifference(tri[2], tri[0]);
+                const faceNormal = normalizeVector(crossProduct(edge1, edge2));
+
+                for (let j = 0; j < 3; j++) {
+                    const vert = tri[j];
+                    finalVertices.push(vert[0], vert[1], vert[2]);
+                    finalNormals.push(faceNormal[0], faceNormal[1], faceNormal[2]);
+                    finalColors.push(currentColor[0], currentColor[1], currentColor[2], currentColor[3]);
+                }
+            }
+        }
+    }
+    return {
+        vertices: new Float32Array(finalVertices),
+        normals: new Float32Array(finalNormals),
+        colors: new Float32Array(finalColors)
+    };
+}
