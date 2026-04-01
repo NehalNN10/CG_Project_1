@@ -3,10 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Project 1</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-theme="dark"> <div class="app-container">
+        <header class="top-bar">
+            <h1>Karsaz ka Dulha کارساز کا دولہا </h1>
+            <button id="theme-toggle" class="theme-btn">☀️ Light Mode</button>
+        </header>
+
+        <main class="game-area">
+            
+            <div class="canvas-container">
+                <canvas id="gl-canvas" width="1000" height="800">
+                    Your browser doesn't support the Canvas element
+                </canvas>
+            </div>
+
+            <aside class="controls-panel">
+                <h2>Game Settings</h2>
+                
+                <div class="control-group">
+                    <label>Walk Speed: <span id="speed-slider-val">2</span></label>
+                    <input type="range" id="speed-slider" min="1" max="5" value="2">
+                </div>
+
+                <div class="control-group">
+                    <label>Turn Speed: <span id="turning-slider-val">3</span></label>
+                    <input type="range" id="turning-slider" min="1" max="5" value="3">
+                </div>
+
+                <div class="control-group">
+                    <label>Fog Density (Far): <span id="fog-slider-val">4</span></label>
+                    <input type="range" id="fog-slider" min="1" max="5" value="4">
+                </div>
+
+                <div class="instructions">
+                    <h3>Controls</h3>
+                    <p><b>W/A/S/D</b> - Move</p>
+                    <p><b>Q/E</b> - Turn Left/Right</p>
+                    <p><b>Up/Down</b> - Look Up/Down</p>
+                    <p><b>Left/Right</b> - Roll Left/Right</p>
+                    <p><b>Shift</b> - Sprint</p>
+                    <p><b>Space / Ctrl</b> - Jump / Crouch</p>
+                    <p><b>1/2/3</b> - Shading Modes</p>
+                    <p><b>R</b> - Reset Camera</p>
+                </div>
+            </aside>
+        </main>
+    </div>
 
     <!-- x-shader/x-vertex makes the red lines go away -->
     <script id="vertex-shader" type="x-shader/x-vertex">
@@ -135,23 +180,25 @@
             gl_FragColor = mix(uFogColor, finalBaseColor, fogFactor);
         }
     </script>
-    <div class="container">
-    <canvas id="gl-canvas" width="1000" height="800">Your browser doth not supporteth the Canvas element</canvas>
-
-    <div class="controls">
-        <div class="control-group">
-            <h3>Movement speed</h3>
-            <input type="range" id="speed-slider" min="1" max="5" value="2" step="1">
-            <span id="speed-slider-val">2</span>
-            <h3>Turning speed</h3>
-            <input type="range" id="turning-slider" min="1" max="5" value="3" step="1">
-            <span id="turning-slider-val">3</span>
-        </div>
-    </div>
+    
     </div>
     <script src="initShaders.js"></script>
     <script src="webgl-utils.js"></script>
     <script src="common.js"></script>
     <script src="scene.js"></script>
+
+    <script>
+        const toggleBtn = document.getElementById('theme-toggle');
+        toggleBtn.addEventListener('click', () => {
+            const body = document.body;
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                toggleBtn.textContent = '🌙 Dark Mode';
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                toggleBtn.textContent = '☀️ Light Mode';
+            }
+        });
+    </script>
 </body>
 </html>

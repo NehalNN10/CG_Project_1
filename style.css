@@ -1,24 +1,161 @@
-.container
-{
-    border: 2px solid black;
-    display: flex;
-    gap: 10px;
-    height: 100vh;
+/* --- THEME VARIABLES --- */
+:root {
+    /* Dark Theme (Default) */
+    --bg-color: #0f0f13;
+    --text-color: #e0e0e0;
+    --panel-bg: rgba(30, 30, 35, 0.85); /* Slightly transparent */
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --accent-color: #6366f1; /* Indigo */
+    --accent-hover: #4f46e5;
+    --canvas-shadow: rgba(0, 0, 0, 0.8);
 }
 
-#gl-canvas
-{
-    display: flex;
-    margin: auto;
+[data-theme="light"] {
+    /* Light Theme */
+    --bg-color: #f3f4f6;
+    --text-color: #1f2937;
+    --panel-bg: rgba(255, 255, 255, 0.85);
+    --panel-border: rgba(0, 0, 0, 0.1);
+    --accent-color: #4f46e5;
+    --accent-hover: #4338ca;
+    --canvas-shadow: rgba(0, 0, 0, 0.15);
 }
 
-.controls {
-    display: flex;
+/* --- GLOBAL STYLES --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.4s ease, color 0.4s ease;
+    overflow-x: hidden;
+}
+
+/* --- LAYOUT --- */
+.app-container {
+    max-width: 1400px;
     margin: 0 auto;
-    /* border: 3px solid black; */
+    padding: 20px;
 }
 
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.top-bar h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.game-area {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+/* --- CANVAS STYLING --- */
+.canvas-container {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+}
+
+canvas {
+    border-radius: 12px;
+    box-shadow: 0 10px 30px var(--canvas-shadow);
+    border: 1px solid var(--panel-border);
+    background-color: #000; /* Keeps the canvas area dark while loading */
+}
+
+/* --- GLASSMORPHISM CONTROL PANEL --- */
+.controls-panel {
+    width: 320px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px); /* The "Glass" effect */
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 10px 30px var(--canvas-shadow);
+    transition: all 0.4s ease;
+}
+
+.controls-panel h2 {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+/* --- SLIDERS --- */
 .control-group {
-    border: 3px solid black;
-    /* margin: auto; */
+    margin-bottom: 20px;
+}
+
+.control-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.control-group span {
+    color: var(--accent-color);
+    font-weight: 700;
+}
+
+input[type=range] {
+    width: 100%;
+    accent-color: var(--accent-color); /* Modern CSS slider coloring */
+    cursor: pointer;
+}
+
+/* --- INSTRUCTIONS --- */
+.instructions {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--panel-border);
+}
+
+.instructions h3 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+.instructions p {
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+    opacity: 0.8;
+}
+
+.instructions b {
+    color: var(--accent-color);
+}
+
+/* --- BUTTONS --- */
+.theme-btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.theme-btn:hover {
+    background-color: var(--accent-hover);
 }

@@ -32,7 +32,7 @@ var streetlightRightVBuffer, streetlightRightCBuffer, streetlightRightNBuffer;
 var vPositionLoc, vColorLoc; 
 
 // movement vars
-var keys = { "w": false, "a": false, "s": false, "d": false, "q": false, "e": false, "jump": false, "crouch": false, "sprint": false, "pitchUp": false, "pitchDown": false, "rollLeft": false, "rollRight": false };
+var keys = { "w": false, "a": false, "s": false, "d": false, "q": false, "e": false, "jump": false, "crouch": false, "sprint": false, "pitchUp": false, "pitchDown": false, "rollLeft": false, "rollRight": false, "r": false};
 var sprintHeld = 0;
 let maxFovPercent = 0.2;
 let fovChangeRate = 0.02;
@@ -44,10 +44,14 @@ var turnSpeed = 1;
 let bobbingAmount = 0.01;
 let bobCounter = 0;
 
+const initCamX = 0.0;
+const initCamY = 0.6;
+const initCamZ = 5.0;
+
 // initial cam position
-var camX = 0.0;
-var camY = 0.6;
-var camZ = 5.0;
+var camX = initCamX;
+var camY = initCamY;
+var camZ = initCamZ;
 
 // car1 position
 var car1X = 1.2;
@@ -79,7 +83,7 @@ var uLightDirectionLoc;
 
 // shading var
 var drawMode;
-var shadingMode; // "flat" or "gourad"
+var shadingMode; // "flat" or "gouraud"
 
 // road variables
 var roadWidth = 4.0;
@@ -1061,7 +1065,7 @@ window.onload = async function init() {
         if (key === "2")
         {
             drawMode = gl.TRIANGLES; // solid
-            shadingMode = "gourad";
+            shadingMode = "gouraud";
             for (let i = 0; i < 5; i++)
             {
                 gl.bindBuffer(gl.ARRAY_BUFFER, treeNBuffers[i]);
@@ -1107,9 +1111,13 @@ function render() {
     walkSpeed = parseFloat(document.querySelector("#speed-slider").value) * 0.025;
     turnSpeed = parseFloat(document.querySelector("#turning-slider").value) * 0.33;
 
+    // read fogFar value from slider
+    fogFar = 16 - parseFloat(document.querySelector("#fog-slider").value) * 2;
+
     // update slider values
     document.querySelector("#speed-slider-val").textContent = document.querySelector("#speed-slider").value;
     document.querySelector("#turning-slider-val").textContent = document.querySelector("#turning-slider").value;
+    document.querySelector("#fog-slider-val").textContent = document.querySelector("#fog-slider").value;
 
     moving = (keys["w"] || keys["s"] || keys["a"] || keys["d"]);
     sprinting = keys["sprint"] && moving;
@@ -1184,19 +1192,30 @@ function render() {
         camZ -= jumpZ * walkSpeed; 
     }
 
+    // reset camera
+    if (keys.r)
+    {
+        camX = initCamX;
+        camY = initCamY;
+        camZ = initCamZ;
+        yaw = 0.0;
+        pitch = 0.0;
+        roll = 0.0;
+    }
+
     // clamp movement here
     var limitX = roadWidth * 2.0;       // Keeps them roughly within the tree lines
     var limitZ = (roadLength / 2) * 0.8;  // Keeps them from falling off the ends of the road
     var minY = 0.2;                     // Keeps them from sinking under the floor
-    var maxY = 4.0;                     // Keeps them from flying away
+    var maxY = 3.0;                     // Keeps them from flying away
 
-    // Clamp X (Left/Right)
+    // Clamp X
     camX = Math.max(-limitX, Math.min(camX, limitX));
     
-    // Clamp Y (Up/Down)
+    // Clamp Y
     camY = Math.max(minY, Math.min(camY, maxY));
     
-    // Clamp Z (Forward/Backward)
+    // Clamp Z
     camZ = Math.max(-limitZ, Math.min(camZ, limitZ));
 
     // Camera Matrices
