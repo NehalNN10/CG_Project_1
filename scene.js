@@ -12,14 +12,14 @@ var corpseVertexCount = 0;
 
 // fog vars
 var fogColor = new Float32Array([0.3, 0.3, 0.3, 1.0]); // dark grey
-var fogNear = 3.0;  
-var fogFar = 120.0; 
+var fogNear = 0.0;  
+var fogFar = 8.0; 
 var uFogColorLoc, uFogNearLoc, uFogFarLoc;
 
 // buffer vars
 var floorVBuffer, floorCBuffer, floorNBuffer;
 var moonVBuffer, moonCBuffer;
-var  tree1VBuffer, tree1CBuffer, tree1NBuffer;
+var tree1VBuffer, tree1CBuffer, tree1NBuffer;
 var tree2VBuffer, tree2CBuffer, tree2NBuffer;
 var tree3VBuffer, tree3CBuffer, tree3NBuffer;
 var tree4VBuffer, tree4CBuffer, tree4NBuffer;
@@ -82,51 +82,84 @@ var shadingMode; // "flat" or "gourad"
 var roadWidth = 4.0;
 var roadLength = 80.0;
 var stripWidth = 0.1;
+var roadSections = 40;
 
-// road def
-const roadVertices = new Float32Array([
-    -roadWidth/2, 0.0, -roadLength/2,  
-    -stripWidth/2, 0.0, -roadLength/2,  
-    -roadWidth/2, 0.0,  roadLength/2,  
-    -roadWidth/2, 0.0,  roadLength/2,  
-    -stripWidth/2, 0.0, -roadLength/2,  
-    -stripWidth/2, 0.0,  roadLength/2,
+var roadVBuffer, roadCBuffer, roadNBuffer;
+var roadVertexCount = 0;
 
-    -stripWidth/2, 0.0, -roadLength/2,
-    stripWidth/2, 0.0, -roadLength/2,
-    -stripWidth/2, 0.0,  roadLength/2,
-    -stripWidth/2, 0.0,  roadLength/2,
-    stripWidth/2, 0.0, -roadLength/2,
-    stripWidth/2, 0.0,  roadLength/2,
 
-    stripWidth/2, 0.0, -roadLength/2,  
-    roadWidth/2, 0.0, -roadLength/2,  
-    stripWidth/2, 0.0,  roadLength/2,  
-    stripWidth/2, 0.0,  roadLength/2,  
-    roadWidth/2, 0.0, -roadLength/2,  
-    roadWidth/2, 0.0,  roadLength/2   
-]);
+// generating the road as smaller triangles for fog issue
+function generateRoad(roadWidth, roadLength, stripWidth, nBlocks) {
+    // nBlocks is the number of blocks the road is divided into along its length, each block will be a separate set of triangles
+    let vertices = [];
+    let colors = [];
+    let normals = [];
+    const blockLength = roadLength / nBlocks;
+    const blockWidth = roadWidth/2 - stripWidth/2; // width of the road on either side of the strip
+    let zStart = [-roadWidth/2, 0.0, -roadLength / 2];
 
-const roadColors = new Float32Array([
-    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
-    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+    for (let i = 0; i < nBlocks; i++) {
+        // we simply push the vertices, colors, and normals for each block of the road into the arrays
 
-    0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,
-    0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,   0.5, 0.5, 0.5, 1.0,
+        // left side
+        vertices.push(zStart[0], 0.0, zStart[2]);
+        vertices.push(zStart[0] + blockWidth, 0.0, zStart[2]);
+        vertices.push(zStart[0] + blockWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0], 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0], 0.0, zStart[2]); 
 
-    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
-    0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0
-]);
+        // middle strip
+        vertices.push(zStart[0] + blockWidth, 0.0, zStart[2]);
+        vertices.push(zStart[0] + blockWidth + stripWidth, 0.0, zStart[2]);
+        vertices.push(zStart[0] + blockWidth + stripWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth + stripWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth, 0.0, zStart[2]);
 
-// points to the sky for the normal
-const roadNormals = new Float32Array([
-    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0
-]);
+        // right side
+        vertices.push(zStart[0] + blockWidth + stripWidth, 0.0, zStart[2]);
+        vertices.push(zStart[0] + blockWidth + stripWidth + blockWidth, 0.0, zStart[2]);
+        vertices.push(zStart[0] + blockWidth + stripWidth + blockWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth + stripWidth + blockWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth + stripWidth, 0.0, zStart[2] + blockLength);
+        vertices.push(zStart[0] + blockWidth + stripWidth, 0.0, zStart[2]);
+
+        zStart = [zStart[0], 0.0, zStart[2] + blockLength];
+
+        colors.push(
+            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+
+            0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,
+            0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,
+
+            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0
+        );
+
+        normals.push(
+            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0
+        );
+    };
+
+    return {
+        vertices: new Float32Array(vertices),
+        colors: new Float32Array(colors),
+        normals: new Float32Array(normals)
+    };
+}
+
+const roadData = generateRoad(roadWidth, roadLength, stripWidth, roadSections);
+const roadVertices = roadData.vertices;
+const roadColors = roadData.colors;
+const roadNormals = roadData.normals;
+roadVertexCount = roadVertices.length / 3;
 
 // tree def
 function generateTree(type) // 4 <= numLayers <= 8
@@ -1064,7 +1097,7 @@ function render() {
     gl.bindBuffer(gl.ARRAY_BUFFER, roadNBuffer);
     gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
 
-    gl.drawArrays(drawMode, 0, roadVertices.length / 3);
+    gl.drawArrays(drawMode, 0, roadVertexCount);
 
     // Bind moon data
     gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
@@ -1135,7 +1168,6 @@ function render() {
     }
 
     // Streetlight
-
     gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[0]);
     gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[0]);
