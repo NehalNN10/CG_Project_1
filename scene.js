@@ -308,7 +308,7 @@ const numTrees = 300;
 const treeTypeArray = [];
 const treeLocations = [];
 
-const columns = 8;
+const columns = 14;
 const columnX = [];
 for (let i = 0; i < columns; i++)
 {
@@ -934,7 +934,7 @@ window.onload = async function init() {
         }
         if (key === "3") 
         {
-            drawMode = gl.LINE_LOOP; // wireframe
+            drawMode = gl.LINES; // wireframe
         }
     });
 
@@ -957,6 +957,14 @@ window.onload = async function init() {
 // --- RENDER PHASE ---
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // read walker and turning speed from slider
+    walkSpeed = parseFloat(document.querySelector("#speed-slider").value) * 0.025;
+    turnSpeed = parseFloat(document.querySelector("#turning-slider").value) * 0.33;
+
+    // update slider values
+    document.querySelector("#speed-slider-val").textContent = document.querySelector("#speed-slider").value;
+    document.querySelector("#turning-slider-val").textContent = document.querySelector("#turning-slider").value;
 
     moving = (keys["w"] || keys["s"] || keys["a"] || keys["d"]);
     sprinting = keys["sprint"] && moving;
@@ -1030,6 +1038,21 @@ function render() {
         camY -= jumpY * walkSpeed;
         camZ -= jumpZ * walkSpeed; 
     }
+
+    // clamp movement here
+    var limitX = roadWidth * 2.0;       // Keeps them roughly within the tree lines
+    var limitZ = (roadLength / 2) - 1;  // Keeps them from falling off the ends of the road
+    var minY = 0.2;                     // Keeps them from sinking under the floor
+    var maxY = 4.0;                     // Keeps them from flying away
+
+    // Clamp X (Left/Right)
+    camX = Math.max(-limitX, Math.min(camX, limitX));
+    
+    // Clamp Y (Up/Down)
+    camY = Math.max(minY, Math.min(camY, maxY));
+    
+    // Clamp Z (Forward/Backward)
+    camZ = Math.max(-limitZ, Math.min(camZ, limitZ));
 
     // Camera Matrices
     var eye = vec3(camX, camY, camZ);
@@ -1162,3 +1185,5 @@ function render() {
 
     requestAnimFrame(render); 
 }
+
+// TODO: use cursor instead of keys for panning [not roll]

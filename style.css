@@ -1,5 +1,24 @@
+.container
+{
+    border: 2px solid black;
+    display: flex;
+    gap: 10px;
+    height: 100vh;
+}
+
 #gl-canvas
 {
-    display: block;
+    display: flex;
     margin: auto;
+}
+
+.controls {
+    display: flex;
+    margin: 0 auto;
+    /* border: 3px solid black; */
+}
+
+.control-group {
+    border: 3px solid black;
+    /* margin: auto; */
 }
