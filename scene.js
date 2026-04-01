@@ -21,7 +21,6 @@ var uIsGrassLoc;
 
 // buffer vars
 var floorVBuffer, floorCBuffer, floorNBuffer;
-// var moonVBuffer, moonCBuffer;
 var tree1VBuffer, tree1CBuffer, tree1NBuffer;
 var tree2VBuffer, tree2CBuffer, tree2NBuffer;
 var tree3VBuffer, tree3CBuffer, tree3NBuffer;
@@ -56,12 +55,12 @@ var camZ = initCamZ;
 // car1 position
 var car1X = 1.2;
 var car1Y = 0.0;
-var car1Z = -14.0;
+var car1Z = -5.0;
 
 // corpse position
 var corpseX = 0.4;
 var corpseY = 0.15;
-var corpseZ = -14.0;
+var corpseZ = car1Z;
 
 // car scale
 var carScale = 0.4;
@@ -434,23 +433,32 @@ for (let i = 1; i <= 5; i++)
     treeVertexNormals.push(new Float32Array(treeData.vertexNormals));
 }
 
-const numTrees = 300;
+const numTrees = 540;
 const treeTypeArray = [];
 const treeLocations = [];
 
-const columns = 14;
+const columnsPerSide = 12;
+const columns = columnsPerSide * 2;
 const columnX = [];
-for (let i = 0; i < columns; i++)
+const innerGrassOffset = 1.0;
+const leftNearRoad = -roadWidth / 2 - innerGrassOffset - 0.7;
+const leftFarGrass = -roadWidth / 2 - grassWidth + innerGrassOffset;
+const rightNearRoad = roadWidth / 2 + innerGrassOffset;
+const rightFarGrass = roadWidth / 2 + grassWidth - innerGrassOffset;
+
+for (let i = 0; i < columnsPerSide; i++)
 {
-    if (i < columns/2)
-    {
-        columnX.push(-roadWidth*2.0 + (i) * (roadWidth*2.5/columns));
-    }
-    else
-    {
-        columnX.push(roadWidth*2.0 - (columns - i) * (roadWidth*2.5/columns));
-    }
+    let t = columnsPerSide > 1 ? i / (columnsPerSide - 1) : 0;
+    columnX.push(leftNearRoad + t * (leftFarGrass - leftNearRoad));
 }
+
+for (let i = 0; i < columnsPerSide; i++)
+{
+    let t = columnsPerSide > 1 ? i / (columnsPerSide - 1) : 0;
+    columnX.push(rightNearRoad + t * (rightFarGrass - rightNearRoad));
+}
+
+const columnXJitter = (grassWidth / columnsPerSide) * 0.35;
 const rows = Math.ceil(numTrees / columns);
 const columnZ = [];
 for (let i = 0; i < rows; i++)
@@ -477,7 +485,7 @@ for (let i = 0; i < columns; i++)
         {
             let treeType = Math.floor(Math.random() * 5) + 1;
             treeTypeArray.push(treeType);
-            treeLocations.push([columnX[i] + Math.random() * (roadWidth*2/columns * 0.75), 0, columnZ[j] + Math.random() * (roadLength/rows * 0.65)]);
+            treeLocations.push([columnX[i] + Math.random() * columnXJitter, 0, columnZ[j] + Math.random() * (roadLength/rows * 0.65)]);
         }
     }
 }
@@ -832,7 +840,7 @@ for (let i = 0; i < 2; i++)
     streetlightLightPositions.push(streetlightData.lightPosition);
 }
 
-const numStreetlights = 5;
+const numStreetlights = 6;
 const zDistBetweenLights = roadLength / numStreetlights;
 const streetlightTypeArray = [];
 const streetlightLocations = [];
@@ -840,7 +848,7 @@ const streetlightLightWorldPositions = [];
 
 for (let i = 0; i < numStreetlights; i++)
 {
-    let dir = (i + 1) % 2; // alternate left and right
+    let dir = i % 2; // alternate left and right
     streetlightTypeArray.push(dir);
     let xOffset = dir == 0 ? 1.7 : -2.7; 
     let zOffset = -roadLength/2 + (i + 0.5) * zDistBetweenLights;
@@ -1173,7 +1181,7 @@ function render() {
 
     // clamp movement here
     var limitX = roadWidth;       // Keeps them roughly within the tree lines
-    var limitZ = (roadLength / 2) * 0.8;  // Keeps them from falling off the ends of the road
+    var limitZ = (roadLength / 2) * 0.5;  // Keeps them from falling off the ends of the road
     var minY = 0.2;                     // Keeps them from sinking under the floor
     var maxY = 3.0;                     // Keeps them from flying away
 
@@ -1264,20 +1272,6 @@ function render() {
     gl.uniform1f(uIsGrassLoc, 1.0); // switch to grass shader logic
     gl.drawArrays(drawMode, 0, grassVertexCount);
     gl.uniform1f(uIsGrassLoc, 0.0); // turn off grass shader logic for other objects
-
-    // Bind moon data
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
-    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer); // Cuboid shape for moon for now
-    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-
-    // Moon
-    var moveMoon = translate(moonX, moonY, moonZ);
-    var growMoon = scale(2.0, 2.0, 2.0);
-    var moonModelMatrix = mult(moveMoon, growMoon);
-
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(moonModelMatrix));
-    gl.drawArrays(drawMode, 0, 36);
 
     // bind car data
     gl.bindBuffer(gl.ARRAY_BUFFER, carCBuffer);
