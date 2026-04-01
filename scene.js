@@ -11,7 +11,7 @@ var corpseVBuffer, corpseCBuffer, corpseNBuffer;
 var corpseVertexCount = 0;
 
 // fog vars
-var fogColor = new Float32Array([0.3, 0.3, 0.3, 1.0]); // dark grey
+var fogColor = new Float32Array([0.2, 0.2, 0.2, 1.0]); // dark grey
 var fogNear = 0.0;  
 var fogFar = 8.0; 
 var uFogColorLoc, uFogNearLoc, uFogFarLoc;
@@ -1230,7 +1230,7 @@ function render() {
             linear: 0.09,
             quadratic: 0.032,
             cutoff: 75.0, // degrees
-            exponent: 1.0
+            exponent: 10.0
         });
     }
 
