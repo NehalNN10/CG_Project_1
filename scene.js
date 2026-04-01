@@ -44,11 +44,11 @@ var turnSpeed = 1;
 let bobbingAmount = 0.01;
 let bobCounter = 0;
 
+// initial camera position
 const initCamX = 0.0;
 const initCamY = 0.6;
 const initCamZ = 5.0;
 
-// initial cam position
 var camX = initCamX;
 var camY = initCamY;
 var camZ = initCamZ;
@@ -91,6 +91,7 @@ var roadLength = 80.0;
 var stripWidth = 0.1;
 var roadSections = 40;
 
+// road rendering vars
 var roadVBuffer, roadCBuffer, roadNBuffer;
 var roadVertexCount = 0;
 
@@ -878,10 +879,10 @@ const moonNormals = new Float32Array([
 var moonColorArray = new Float32Array(144);
 
 for (let i = 0; i < 144; i += 4) {
-    moonColorArray[i] = 1.0;     // Red
-    moonColorArray[i+1] = 1.0;   // Green
-    moonColorArray[i+2] = 0.8;   // Blue (Slightly less blue makes yellow)
-    moonColorArray[i+3] = 1.0;   // Alpha
+    moonColorArray[i] = 1.0;
+    moonColorArray[i+1] = 1.0;
+    moonColorArray[i+2] = 0.8;
+    moonColorArray[i+3] = 1.0;
 }
 
 window.onload = async function init() {
@@ -1099,7 +1100,7 @@ window.onload = async function init() {
         if (key in keys) keys[key] = false;
     });
 
-    // simulator alligator
+    // simulator
     render();
 }
 
@@ -1119,6 +1120,7 @@ function render() {
     document.querySelector("#turning-slider-val").textContent = document.querySelector("#turning-slider").value;
     document.querySelector("#fog-slider-val").textContent = document.querySelector("#fog-slider").value;
 
+    // changing FOV based on sprinting
     moving = (keys["w"] || keys["s"] || keys["a"] || keys["d"]);
     sprinting = keys["sprint"] && moving;
     sprintHeld = sprinting ? sprintHeld + fovChangeRate : sprintHeld - fovChangeRate;
@@ -1204,10 +1206,10 @@ function render() {
     }
 
     // clamp movement here
-    var limitX = roadWidth;       // Keeps them roughly within the tree lines
-    var limitZ = (roadLength / 2) * 0.8;  // Keeps them from falling off the ends of the road
-    var minY = 0.2;                     // Keeps them from sinking under the floor
-    var maxY = 3.0;                     // Keeps them from flying away
+    var limitX = roadWidth; // don't venture too deep into forest
+    var limitZ = (roadLength / 2) * 0.8; // don't fall off road - small buffer so using 0.8
+    var minY = 0.2; // don't sink under road
+    var maxY = 3.0; // don't fly too high (Icarus reference)
 
     // Clamp X
     camX = Math.max(-limitX, Math.min(camX, limitX));
