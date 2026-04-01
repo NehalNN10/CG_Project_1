@@ -1007,6 +1007,39 @@ window.onload = async function init() {
         });
     }
 
+    // Light values
+    let activeLights = [];
+    for (let i = 0; i < numStreetlights; i++)
+    {
+        activeLights.push({
+            type: 1, // spotlight
+            position: streetlightLightWorldPositions[i],
+            color: [1.0, 0.8, 0.6], // warm light
+            direction: [0, -1, 0], // pointing downwards
+            constant: 1.0,
+            linear: 0.09,
+            quadratic: 0.032,
+            cutoff: 75.0, // degrees
+            exponent: 10.0
+        });
+    }
+
+    gl.uniform1i(uNumLightsLoc, activeLights.length);
+
+    for (let i = 0; i < activeLights.length; i++) {
+        gl.uniform1i(uLightsLoc[i].type, activeLights[i].type);
+        gl.uniform3fv(uLightsLoc[i].position, flatten(activeLights[i].position));
+        gl.uniform3fv(uLightsLoc[i].color, flatten(activeLights[i].color));
+        gl.uniform3fv(uLightsLoc[i].direction, flatten(activeLights[i].direction));
+        
+        gl.uniform1f(uLightsLoc[i].constant, activeLights[i].constant);
+        gl.uniform1f(uLightsLoc[i].linear, activeLights[i].linear);
+        gl.uniform1f(uLightsLoc[i].quadratic, activeLights[i].quadratic);
+        
+        gl.uniform1f(uLightsLoc[i].cutoff, activeLights[i].cutoff);
+        gl.uniform1f(uLightsLoc[i].exponent, activeLights[i].exponent);
+    }
+
     // Event listeners
     window.addEventListener("keydown", function(event) {
         var key = event.key.toLowerCase();
@@ -1217,39 +1250,6 @@ function render() {
     gl.uniformMatrix4fv(uProjectionMatrix, false, flatten(projectionMatrix));
     gl.uniformMatrix4fv(uViewMatrix, false, flatten(viewMatrix));
 
-    // Light values
-    let activeLights = [];
-    for (let i = 0; i < numStreetlights; i++)
-    {
-        activeLights.push({
-            type: 1, // spotlight
-            position: streetlightLightWorldPositions[i],
-            color: [1.0, 0.8, 0.6], // warm light
-            direction: [0, -1, 0], // pointing downwards
-            constant: 1.0,
-            linear: 0.09,
-            quadratic: 0.032,
-            cutoff: 75.0, // degrees
-            exponent: 10.0
-        });
-    }
-
-    gl.uniform1i(uNumLightsLoc, activeLights.length);
-
-    for (let i = 0; i < activeLights.length; i++) {
-        gl.uniform1i(uLightsLoc[i].type, activeLights[i].type);
-        gl.uniform3fv(uLightsLoc[i].position, flatten(activeLights[i].position));
-        gl.uniform3fv(uLightsLoc[i].color, flatten(activeLights[i].color));
-        gl.uniform3fv(uLightsLoc[i].direction, flatten(activeLights[i].direction));
-        
-        gl.uniform1f(uLightsLoc[i].constant, activeLights[i].constant);
-        gl.uniform1f(uLightsLoc[i].linear, activeLights[i].linear);
-        gl.uniform1f(uLightsLoc[i].quadratic, activeLights[i].quadratic);
-        
-        gl.uniform1f(uLightsLoc[i].cutoff, activeLights[i].cutoff);
-        gl.uniform1f(uLightsLoc[i].exponent, activeLights[i].exponent);
-    }
-
     // setting fog uniforms
     gl.uniform4fv(uFogColorLoc, fogColor);
     gl.uniform1f(uFogNearLoc, fogNear);
@@ -1323,35 +1323,54 @@ function render() {
     gl.drawArrays(drawMode, 0, corpseVertexCount);
 
     // Trees
-    for (let i = 0; i < numTrees; i++)
+    for (let type = 1; type <= 5; type++) // this way we only bind each tree type buffers once
     {
-        let treeType = treeTypeArray[i];
-        gl.bindBuffer(gl.ARRAY_BUFFER, treeCBuffers[treeType-1]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeCBuffers[type-1]);
         gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, treeVBuffers[treeType-1]);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeVBuffers[type-1]);
         gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, treeNBuffers[treeType-1]);
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeNBuffers[type-1]);
         gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
-        var shrinkTree = scale(0.5, 0.5, 0.5);
-        var transTree = translate(treeLocations[i][0], treeLocations[i][1], treeLocations[i][2]);
-        var treeModelMatrix = mult(transTree, shrinkTree);
-        gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(treeModelMatrix));
-        gl.drawArrays(drawMode, 0, treeVertices[treeType-1].length / 3);
+
+        for (let i = 0; i < numTrees; i++) 
+        {
+            if (treeTypeArray[i] === type) 
+            {
+                var shrinkTree = scale(0.5, 0.5, 0.5);
+                var transTree = translate(treeLocations[i][0], treeLocations[i][1], treeLocations[i][2]);
+                var treeModelMatrix = mult(transTree, shrinkTree);
+                
+                gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(treeModelMatrix));
+                gl.drawArrays(drawMode, 0, treeVertices[type-1].length / 3);
+            }
+        }
     }
 
-    for (let i = 0; i < numStreetlights; i++)
+    for (let type = 1; type <= 2; type++) // this way we only bind each streetlight type buffers once
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[streetlightTypeArray[i]]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[type-1]);
         gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[streetlightTypeArray[i]]);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[type-1]);
         gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[streetlightTypeArray[i]]);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[type-1]);
         gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
-        var shrinkLamp = scale(1.0, 1.0, 1.0);
-        var transLamp = translate(streetlightLocations[i][0], streetlightLocations[i][1], streetlightLocations[i][2]);
-        var lampModelMatrix = mult(transLamp, shrinkLamp);
-        gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
-        gl.drawArrays(drawMode, 0, streetlightVertices[streetlightTypeArray[i]].length / 3);
+
+        for (let i = 0; i < numStreetlights; i++)
+        {
+            if (streetlightTypeArray[i] === type - 1)
+            {
+                var shrinkLamp = scale(1.0, 1.0, 1.0);
+                var transLamp = translate(streetlightLocations[i][0], streetlightLocations[i][1], streetlightLocations[i][2]);
+                var lampModelMatrix = mult(transLamp, shrinkLamp);
+
+                gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
+                gl.drawArrays(drawMode, 0, streetlightVertices[type-1].length / 3);
+            }
+        }
     }
 
     requestAnimFrame(render); 
