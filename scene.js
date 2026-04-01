@@ -180,7 +180,6 @@ const roadColors = roadData.colors;
 const roadNormals = roadData.normals;
 roadVertexCount = roadVertices.length / 3;
 
-
 // width of the grass patch on each side of the road
 var grassWidth = 15.0;
 var grassSectionsZ = roadSections; 
@@ -857,6 +856,10 @@ for (let i = 0; i < numStreetlights; i++)
     streetlightLightWorldPositions.push([streetlightLightPositions[dir][0] + xOffset, streetlightLightPositions[dir][1], streetlightLightPositions[dir][2] + zOffset]);
 }
 
+// to simulate flickering
+const flicker = [0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.8, 1.0, 0.8, 0.5, 0.2, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5, 0.5, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0, 0, 0.2, 0.2, 0.2, 0.2, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.8, 0.8, 0.8, 0.5, 0.5, 0.5, 0.2, 0.2, 0.2, 0];
+let flickerIndex = 0;
+
 window.onload = async function init() {
     canvas = document.querySelector("#gl-canvas");
     gl = WebGLUtils.setupWebGL(canvas);
@@ -993,7 +996,8 @@ window.onload = async function init() {
 
     // light uniform locs
     uNumLightsLoc = gl.getUniformLocation(program, "uNumLights");
-    for (let i = 0; i < numStreetlights; i++) {
+    for (let i = 0; i < numStreetlights; i++) 
+    {
         uLightsLoc.push({
             type: gl.getUniformLocation(program, `uLights[${i}].type`),
             position: gl.getUniformLocation(program, `uLights[${i}].position`),
@@ -1026,7 +1030,8 @@ window.onload = async function init() {
 
     gl.uniform1i(uNumLightsLoc, activeLights.length);
 
-    for (let i = 0; i < activeLights.length; i++) {
+    for (let i = 0; i < activeLights.length; i++) 
+    {
         gl.uniform1i(uLightsLoc[i].type, activeLights[i].type);
         gl.uniform3fv(uLightsLoc[i].position, flatten(activeLights[i].position));
         gl.uniform3fv(uLightsLoc[i].color, flatten(activeLights[i].color));
@@ -1254,6 +1259,14 @@ function render() {
     gl.uniform4fv(uFogColorLoc, fogColor);
     gl.uniform1f(uFogNearLoc, fogNear);
     gl.uniform1f(uFogFarLoc, fogFar);
+
+    // make streetlight four flicker
+    flickerIndex = (flickerIndex + 1) % flicker.length;
+    if (Math.random() < 0.1) // disrupt the flicker pattern occasionally to make it less predictable
+    {
+        flickerIndex = (flickerIndex + 2) % flicker.length;
+    }
+    gl.uniform1f(uLightsLoc[2].cutoff, 75.0 * flicker[flickerIndex]);
 
     // The road uses an identity matrix (no movement)
     var identityMatrix = mat4();
