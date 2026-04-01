@@ -1086,6 +1086,9 @@ function render() {
         camX = initCamX;
         camY = initCamY;
         camZ = initCamZ;
+        yaw = 0.0;
+        pitch = 0.0;
+        roll = 0.0;
     }
 
     // clamp movement here
