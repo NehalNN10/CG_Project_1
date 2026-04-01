@@ -34,8 +34,8 @@
                 </div>
 
                 <div class="control-group">
-                    <label>Fog Density (Far): <span id="fog-slider-val">4</span></label>
-                    <input type="range" id="fog-slider" min="1" max="5" value="4">
+                    <label>Fog Density: <span id="fog-slider-val">4</span></label>
+                    <input type="range" id="fog-slider" min="1" max="16" value="14">
                 </div>
 
                 <div class="instructions">
@@ -62,8 +62,24 @@
 
         // for lighting
         attribute vec3 vNormal;
-        uniform vec3 uLightDirection;
-        varying float vLightDistance;
+        #define MAX_LIGHTS 20 
+        struct Light {
+            int type; // 0 for directional, 1 for spotlight
+            vec3 position; // position in world
+            vec3 color;
+            vec3 direction; // pointing direction for spotlight
+            
+            // Attenuation coefficients (a, b, c)
+            float constant;
+            float linear;
+            float quadratic;
+            
+            // Spotlight parameters
+            float cutoff; // when to start decay
+            float exponent; // how fast to decay
+        };
+        uniform Light uLights[MAX_LIGHTS];
+        uniform int uNumLights;
 
         // viewing and projection matrices
         uniform mat4 uViewMatrix;
@@ -83,39 +99,58 @@
             // radial distance from the camera to the vertex
             vDistance = length(viewSpacePosition.xyz);
             
-            // Blinn-Phong Lighting
-            vec3 lightColor = vec3(1.0, 1.0, 1.0); // white light
+            // Blinn-Phong Lighting from multiple sources
             vec4 worldPosition = uModelMatrix * vPosition;
-            vec3 lightDir = normalize(uLightDirection - worldPosition.xyz);
-            vLightDistance = length(worldPosition.xyz - uLightDirection);
-            vec3 lightDirView = normalize((uViewMatrix * vec4(lightDir, 0.0)).xyz); // light direction in view space
             vec3 normalView = normalize((uViewMatrix * uModelMatrix * vec4(vNormal, 0.0)).xyz); // normal in view space
-            float a = 0.3;
-            float b = 1.2;
-            float c = 0.5;
-            float distanceFactor = 1.0 / (a + b * vLightDistance + c * vLightDistance * vLightDistance);
 
-            // ambient
-            // k_a*L_a represented as one scalar
+            vec3 finalLighting = vec3(0.0);
             float I_a = 0.5; // ambient intensity
 
-            // diffuse
-            float L_d = 200.0; // diffuse intensity
-            float k_d = 1.0; // scaling factor (i think set based on material properties)
+            for (int i = 0; i < MAX_LIGHTS; i++) {
+                if (i >= uNumLights) 
+                    break;
+                
+                vec3 lightPosition = uLights[i].position;
+                vec3 lightDir = normalize(lightPosition - worldPosition.xyz); // vector from vertex to light source
+                vec3 lightDirView = normalize((uViewMatrix * vec4(lightDir, 0.0)).xyz); // light direction in view space
+                vec3 lightColor = uLights[i].color;
+                float distance = length(worldPosition.xyz - lightPosition);
 
-            // max(,0.0) prevents negative numbers so the dark side doesn't glow backwards
-            float I_d = distanceFactor*k_d*max(dot(normalView, lightDirView), 0.0)*L_d;
+                float distanceFactor = 1.0 / (uLights[i].constant + uLights[i].linear * distance + uLights[i].quadratic * distance * distance);
 
-            // specular
-            float L_s = 0.0; // specular intensity
-            float k_s = 1.0; 
-            float shininess = 32.0;
-            vec3 h = normalize(lightDirView - viewSpacePosition.xyz); // halfway vector
-            float I_s = distanceFactor * k_s * max(pow(dot(normalView, h), shininess), 0.0) * L_s;
+                // diffuse
+                float L_d = 5.0; // diffuse intensity
+                float k_d = 1.0; // scaling factor (i think set based on material properties)
+                float I_d = distanceFactor*k_d*max(dot(normalView, lightDirView), 0.0)*L_d;
 
-            vec3 finalColor = (vColor.rgb * (I_a + I_d) + vec3(I_s)) * lightColor; 
-            // got the above expression that separates specular reflection from Gemini - the reasoning is that specular reflection should add the light color to the final color, while ambient and diffuse reflection should scale the vertex color by the light color
+                // specular
+                float L_s = 0.5; // specular intensity
+                float k_s = 1.0;
+                float shininess = 16.0; // more is less shiny
+                vec3 h = normalize(lightDirView - viewSpacePosition.xyz); // halfway vector
+                float I_s = distanceFactor * k_s * pow(max(dot(normalView, h), 0.0), shininess) * L_s;
 
+                // if spotlight, then special effect 
+                float spotIntensity = 1.0;
+                if (uLights[i].type == 1)
+                {
+                    float theta = dot(lightDir, normalize(-uLights[i].direction)); // angle between light direction and vector from vertex to light
+                    if (theta > cos(radians(uLights[i].cutoff))) // if within cutoff angle
+                    {
+                        spotIntensity = pow(theta, uLights[i].exponent); // apply spotlight effect
+                    }
+                    else
+                    {
+                        spotIntensity = 0.0; // outside of spotlight cone
+                    }
+                }
+
+                // specular lighting should add the color of the light source, not amplify the color of the object
+                finalLighting += (vColor.rgb * (I_d) + vec3(I_s)) * lightColor * spotIntensity;
+
+            }
+            vec3 finalColor = finalLighting + vColor.rgb * I_a; // add ambient lighting after all the light effects
+            
             fColor = vec4(finalColor, vColor.a);
         }
     </script>

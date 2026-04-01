@@ -18,7 +18,7 @@ var uFogColorLoc, uFogNearLoc, uFogFarLoc;
 
 // buffer vars
 var floorVBuffer, floorCBuffer, floorNBuffer;
-var moonVBuffer, moonCBuffer;
+// var moonVBuffer, moonCBuffer;
 var tree1VBuffer, tree1CBuffer, tree1NBuffer;
 var tree2VBuffer, tree2CBuffer, tree2NBuffer;
 var tree3VBuffer, tree3CBuffer, tree3NBuffer;
@@ -43,7 +43,7 @@ let bobCounter = 0;
 
 const initCamX = 0.0;
 const initCamY = 0.6;
-const initCamZ = 5.0;
+const initCamZ = 20.0;
 
 // initial cam position
 var camX = initCamX;
@@ -53,12 +53,12 @@ var camZ = initCamZ;
 // car1 position
 var car1X = 1.2;
 var car1Y = 0.0;
-var car1Z = -10.0;
+var car1Z = -14.0;
 
 // corpse position
 var corpseX = 0.4;
 var corpseY = 0.15;
-var corpseZ = -10.0;
+var corpseZ = -14.0;
 
 // car scale
 var carScale = 0.4;
@@ -69,14 +69,11 @@ var corpseScale = 0.3;
 // car rotation
 var carRotation = -20;
 
-// moon position
-var moonX = 0.0;
-var moonY = 20.0;
-var moonZ = 0.0;
-
 // lighting vars
 var vNormalLoc;
-var uLightDirectionLoc;
+// var uLightDirectionLoc;
+var uNumLightsLoc;
+var uLightsLoc = [];
 
 // shading var
 var drawMode;
@@ -351,11 +348,11 @@ for (let i = 0; i < columns; i++)
 {
     if (i < columns/2)
     {
-        columnX.push(-roadWidth*1.8 + (i) * (roadWidth*2.5/columns));
+        columnX.push(-roadWidth*2.0 + (i) * (roadWidth*2.5/columns));
     }
     else
     {
-        columnX.push(roadWidth*1.8 - (columns - i) * (roadWidth*2.5/columns));
+        columnX.push(roadWidth*2.0 - (columns - i) * (roadWidth*2.5/columns));
     }
 }
 const rows = Math.ceil(numTrees / columns);
@@ -656,7 +653,8 @@ function generateStreetlight(dir) // dir = 0 for left, 1 for right
         lampLightContainerVertices.push([x, origin[1] + lampHeight - lampOverhangThickness*2, z]);
         lampLightContainerVerticesInFaces.push([]);
     }
-    lampLightContainerVertices.push([origin[0] + (dir == 1 ? lampOverhangLength - lampOverhangWidth : -lampOverhangLength + lampOverhangWidth), origin[1] + lampHeight - lampOverhangThickness/2, origin[2]]);
+    let lightPosition = [origin[0] + (dir == 1 ? lampOverhangLength - lampOverhangWidth : -lampOverhangLength + lampOverhangWidth), origin[1] + lampHeight - lampOverhangThickness/2, origin[2]];
+    lampLightContainerVertices.push(lightPosition);
     lampLightContainerVerticesInFaces.push([]);
 
     let lampLightContainerFaces = [];
@@ -712,7 +710,8 @@ function generateStreetlight(dir) // dir = 0 for left, 1 for right
         faces: faces,
         colors: colors,
         faceNormals: faceNormals,
-        vertexNormals: vertexNormals
+        vertexNormals: vertexNormals,
+        lightPosition: lightPosition
     };
 }
 
@@ -725,6 +724,7 @@ var streetlightVertices = [];
 var streetlightColors = [];
 var streetlightFaceNormals = [];
 var streetlightVertexNormals = [];
+var streetlightLightPositions = [];
 
 for (let i = 0; i < 2; i++)
 {
@@ -733,59 +733,23 @@ for (let i = 0; i < 2; i++)
     streetlightColors.push(new Float32Array(streetlightData.colors));
     streetlightFaceNormals.push(new Float32Array(streetlightData.faceNormals));
     streetlightVertexNormals.push(new Float32Array(streetlightData.vertexNormals));
+    streetlightLightPositions.push(streetlightData.lightPosition);
 }
 
-// moon definition
-const moonVertices = new Float32Array([
-    // Front
-    -0.25, 0.0,  0.25,    0.25, 0.0,  0.25,    0.25, 0.5,  0.25,
-    -0.25, 0.0,  0.25,    0.25, 0.5,  0.25,   -0.25, 0.5,  0.25,
-    // Back
-    -0.25, 0.0, -0.25,   -0.25, 0.5, -0.25,    0.25, 0.5, -0.25,
-    -0.25, 0.0, -0.25,    0.25, 0.5, -0.25,    0.25, 0.0, -0.25,
-    // Top
-    -0.25, 0.5,  0.25,    0.25, 0.5,  0.25,    0.25, 0.5, -0.25,
-    -0.25, 0.5,  0.25,    0.25, 0.5, -0.25,   -0.25, 0.5, -0.25,
-    // Bottom
-    -0.25, 0.0,  0.25,   -0.25, 0.0, -0.25,    0.25, 0.0, -0.25,
-    -0.25, 0.0,  0.25,    0.25, 0.0, -0.25,    0.25, 0.0,  0.25,
-    // Right
-    0.25, 0.0,  0.25,    0.25, 0.0, -0.25,    0.25, 0.5, -0.25,
-    0.25, 0.0,  0.25,    0.25, 0.5, -0.25,    0.25, 0.5,  0.25,
-    // Left
-    -0.25, 0.0,  0.25,   -0.25, 0.5,  0.25,   -0.25, 0.5, -0.25,
-    -0.25, 0.0,  0.25,   -0.25, 0.5, -0.25,   -0.25, 0.0, -0.25
-]);
+const numStreetlights = 5;
+const zDistBetweenLights = roadLength / numStreetlights;
+const streetlightTypeArray = [];
+const streetlightLocations = [];
+const streetlightLightWorldPositions = [];
 
-const moonNormals = new Float32Array([
-    // Front Face points +Z (0, 0, 1)
-    0.0, 0.0, 1.0,   0.0, 0.0, 1.0,   0.0, 0.0, 1.0,
-    0.0, 0.0, 1.0,   0.0, 0.0, 1.0,   0.0, 0.0, 1.0,
-    // Back Face points -Z (0, 0, -1)
-    0.0, 0.0, -1.0,  0.0, 0.0, -1.0,  0.0, 0.0, -1.0,
-    0.0, 0.0, -1.0,  0.0, 0.0, -1.0,  0.0, 0.0, -1.0,
-    // Top Face points +Y (0, 1, 0)
-    0.0, 1.0, 0.0,   0.0, 1.0, 0.0,   0.0, 1.0, 0.0,
-    0.0, 1.0, 0.0,   0.0, 1.0, 0.0,   0.0, 1.0, 0.0,
-    // Bottom Face points -Y (0, -1, 0)
-    0.0, -1.0, 0.0,  0.0, -1.0, 0.0,  0.0, -1.0, 0.0,
-    0.0, -1.0, 0.0,  0.0, -1.0, 0.0,  0.0, -1.0, 0.0,
-    // Right Face points +X (1, 0, 0)
-    1.0, 0.0, 0.0,   1.0, 0.0, 0.0,   1.0, 0.0, 0.0,
-    1.0, 0.0, 0.0,   1.0, 0.0, 0.0,   1.0, 0.0, 0.0,
-    // Left Face points -X (-1, 0, 0)
-    -1.0, 0.0, 0.0,  -1.0, 0.0, 0.0,  -1.0, 0.0, 0.0,
-    -1.0, 0.0, 0.0,  -1.0, 0.0, 0.0,  -1.0, 0.0, 0.0
-]);
-
-// moon definition
-var moonColorArray = new Float32Array(144);
-
-for (let i = 0; i < 144; i += 4) {
-    moonColorArray[i] = 1.0;     // Red
-    moonColorArray[i+1] = 1.0;   // Green
-    moonColorArray[i+2] = 0.8;   // Blue (Slightly less blue makes yellow)
-    moonColorArray[i+3] = 1.0;   // Alpha
+for (let i = 0; i < numStreetlights; i++)
+{
+    let dir = (i + 1) % 2; // alternate left and right
+    streetlightTypeArray.push(dir);
+    let xOffset = dir == 0 ? 1.7 : -2.7; 
+    let zOffset = -roadLength/2 + (i + 0.5) * zDistBetweenLights;
+    streetlightLocations.push([xOffset, 0, zOffset]);
+    streetlightLightWorldPositions.push([streetlightLightPositions[dir][0] + xOffset, streetlightLightPositions[dir][1], streetlightLightPositions[dir][2] + zOffset]);
 }
 
 window.onload = async function init() {
@@ -794,7 +758,7 @@ window.onload = async function init() {
     if (!gl) { alert("WebGL isn't available :("); }
 
     gl.viewport(0, 0, canvas.width, canvas.height);
-    // gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
     // initialize the bg with fog color to maintain fog effect
     gl.clearColor(fogColor[0], fogColor[1], fogColor[2], fogColor[3]);
     gl.enable(gl.DEPTH_TEST);
@@ -828,19 +792,6 @@ window.onload = async function init() {
     roadNBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, roadNBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, roadNormals, gl.STATIC_DRAW);
-
-    // Moon buffers
-    moonCBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, moonColorArray, gl.STATIC_DRAW);
-    
-    moonVBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, moonVertices, gl.STATIC_DRAW);
-
-    moonVBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, moonVertices, gl.STATIC_DRAW);
 
     // Tree buffers 
     for (let i = 0; i < 5; i++)
@@ -913,17 +864,34 @@ window.onload = async function init() {
     uModelMatrixLoc = gl.getUniformLocation(program, "uModelMatrix");
     uViewMatrix = gl.getUniformLocation(program, "uViewMatrix");
     uProjectionMatrix = gl.getUniformLocation(program, "uProjectionMatrix");
+
     // fog uniform locs
     uFogColorLoc = gl.getUniformLocation(program, "uFogColor");
     uFogNearLoc = gl.getUniformLocation(program, "uFogNear");
     uFogFarLoc = gl.getUniformLocation(program, "uFogFar");
+
+    // light uniform locs
+    uNumLightsLoc = gl.getUniformLocation(program, "uNumLights");
+    for (let i = 0; i < numStreetlights; i++) {
+        uLightsLoc.push({
+            type: gl.getUniformLocation(program, `uLights[${i}].type`),
+            position: gl.getUniformLocation(program, `uLights[${i}].position`),
+            color: gl.getUniformLocation(program, `uLights[${i}].color`),
+            direction: gl.getUniformLocation(program, `uLights[${i}].direction`),
+            constant: gl.getUniformLocation(program, `uLights[${i}].constant`),
+            linear: gl.getUniformLocation(program, `uLights[${i}].linear`),
+            quadratic: gl.getUniformLocation(program, `uLights[${i}].quadratic`),
+            cutoff: gl.getUniformLocation(program, `uLights[${i}].cutoff`),
+            exponent: gl.getUniformLocation(program, `uLights[${i}].exponent`)
+        });
+    }
 
     // Event listeners
     window.addEventListener("keydown", function(event) {
         var key = event.key.toLowerCase();
         if (event.code === "Space") key = "jump";
         if (event.code === "ShiftLeft") key = "sprint";
-        if (event.code === "ControlLeft") key = "crouch";
+        if (key === "c") key = "crouch";
         if (event.code === "ArrowUp") key = "pitchUp";
         if (event.code === "ArrowDown") key = "pitchDown";
         if (event.code === "ArrowLeft") key = "rollLeft";
@@ -979,7 +947,7 @@ window.onload = async function init() {
         var key = event.key.toLowerCase();
         if (event.code === "Space") key = "jump";
         if (event.code === "ShiftLeft") key = "sprint";
-        if (event.code === "ControlLeft") key = "crouch";
+        if (key === "c") key = "crouch";
         if (event.code === "ArrowUp") key = "pitchUp";
         if (event.code === "ArrowDown") key = "pitchDown";
         if (event.code === "ArrowLeft") key = "rollLeft";
@@ -1000,7 +968,7 @@ function render() {
     turnSpeed = parseFloat(document.querySelector("#turning-slider").value) * 0.33;
 
     // read fogFar value from slider
-    fogFar = 16 - parseFloat(document.querySelector("#fog-slider").value) * 2;
+    fogFar = Math.max(40 - parseFloat(document.querySelector("#fog-slider").value) * 2, fogNear + 0.1); // Ensure fogFar is always greater than fogNear
 
     // update slider values
     document.querySelector("#speed-slider-val").textContent = document.querySelector("#speed-slider").value;
@@ -1022,8 +990,8 @@ function render() {
     if (keys.e) yaw -= turnSpeed;
     if (keys.pitchUp) pitch += turnSpeed;
     if (keys.pitchDown) pitch -= turnSpeed;
-    if (keys.rollLeft) roll -= turnSpeed;
-    if (keys.rollRight) roll += turnSpeed;
+    if (keys.rollLeft) roll += turnSpeed;
+    if (keys.rollRight) roll -= turnSpeed;
 
     var rotationX = rotateX(pitch);
     var rotationY = rotateY(yaw);
@@ -1114,9 +1082,38 @@ function render() {
     gl.uniformMatrix4fv(uProjectionMatrix, false, flatten(projectionMatrix));
     gl.uniformMatrix4fv(uViewMatrix, false, flatten(viewMatrix));
 
-    // setting light direction and passing to shader
-    var lightDirection = [moonX, moonY, moonZ];
-    gl.uniform3fv(uLightDirectionLoc, flatten(lightDirection));
+    // Light values
+    let activeLights = [];
+    for (let i = 0; i < numStreetlights; i++)
+    {
+        activeLights.push({
+            type: 1, // spotlight
+            position: streetlightLightWorldPositions[i],
+            color: [1.0, 0.8, 0.6], // warm light
+            direction: [0, -1, 0], // pointing downwards
+            constant: 1.0,
+            linear: 0.09,
+            quadratic: 0.032,
+            cutoff: 75.0, // degrees
+            exponent: 1.0
+        });
+    }
+
+    gl.uniform1i(uNumLightsLoc, activeLights.length);
+
+    for (let i = 0; i < activeLights.length; i++) {
+        gl.uniform1i(uLightsLoc[i].type, activeLights[i].type);
+        gl.uniform3fv(uLightsLoc[i].position, flatten(activeLights[i].position));
+        gl.uniform3fv(uLightsLoc[i].color, flatten(activeLights[i].color));
+        gl.uniform3fv(uLightsLoc[i].direction, flatten(activeLights[i].direction));
+        
+        gl.uniform1f(uLightsLoc[i].constant, activeLights[i].constant);
+        gl.uniform1f(uLightsLoc[i].linear, activeLights[i].linear);
+        gl.uniform1f(uLightsLoc[i].quadratic, activeLights[i].quadratic);
+        
+        gl.uniform1f(uLightsLoc[i].cutoff, activeLights[i].cutoff);
+        gl.uniform1f(uLightsLoc[i].exponent, activeLights[i].exponent);
+    }
 
     // setting fog uniforms
     gl.uniform4fv(uFogColorLoc, fogColor);
@@ -1135,20 +1132,6 @@ function render() {
     gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
 
     gl.drawArrays(drawMode, 0, roadVertexCount);
-
-    // Bind moon data
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
-    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer); // Cuboid shape for moon for now
-    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-
-    // Moon
-    var moveMoon = translate(moonX, moonY, moonZ);
-    var growMoon = scale(2.0, 2.0, 2.0);
-    var moonModelMatrix = mult(moveMoon, growMoon);
-
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(moonModelMatrix));
-    gl.drawArrays(drawMode, 0, 36);
 
     // bind car data
     gl.bindBuffer(gl.ARRAY_BUFFER, carCBuffer);
@@ -1204,32 +1187,20 @@ function render() {
         gl.drawArrays(drawMode, 0, treeVertices[treeType-1].length / 3);
     }
 
-    // Streetlight
-    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[0]);
-    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[0]);
-    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[0]);
-    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
-    var shrinkLamp = scale(1.0, 1.0, 1.0);
-    var transLamp = translate(1.7, 0, -10);
-    var lampModelMatrix = mult(transLamp, shrinkLamp);
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
-    gl.drawArrays(drawMode, 0, streetlightVertices[0].length / 3);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[1]);
-    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[1]);
-    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[1]);
-    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
-    var shrinkLamp = scale(1.0, 1.0, 1.0);
-    var transLamp = translate(-2.7, 0, -4);
-    var lampModelMatrix = mult(transLamp, shrinkLamp);
-    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
-    gl.drawArrays(drawMode, 0, streetlightVertices[1].length / 3);
+    for (let i = 0; i < numStreetlights; i++)
+    {
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightCBuffers[streetlightTypeArray[i]]);
+        gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightVBuffers[streetlightTypeArray[i]]);
+        gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, streetlightNBuffers[streetlightTypeArray[i]]);
+        gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+        var shrinkLamp = scale(1.0, 1.0, 1.0);
+        var transLamp = translate(streetlightLocations[i][0], streetlightLocations[i][1], streetlightLocations[i][2]);
+        var lampModelMatrix = mult(transLamp, shrinkLamp);
+        gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(lampModelMatrix));
+        gl.drawArrays(drawMode, 0, streetlightVertices[streetlightTypeArray[i]].length / 3);
+    }
 
     requestAnimFrame(render); 
 }
-
-// TODO: use cursor instead of keys for panning [not roll]
