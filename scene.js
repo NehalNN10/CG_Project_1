@@ -1204,7 +1204,7 @@ function render() {
     }
 
     // clamp movement here
-    var limitX = roadWidth * 2.0;       // Keeps them roughly within the tree lines
+    var limitX = roadWidth;       // Keeps them roughly within the tree lines
     var limitZ = (roadLength / 2) * 0.8;  // Keeps them from falling off the ends of the road
     var minY = 0.2;                     // Keeps them from sinking under the floor
     var maxY = 3.0;                     // Keeps them from flying away
