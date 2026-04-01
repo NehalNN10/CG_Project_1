@@ -11,7 +11,7 @@ This is our project submission for the course Computer Graphics (CS 440)
     * `D`: Strafe Right
     * `Shift Left`: Sprint (hold and press any of `[W, A, S, D]` to move)
     * `Space`: Jump
-    * `Control Left`: Crouch
+    * `C`: Crouch
     * `R`: Reset Camera
 - ### Viewing
     * `Q`: Look Left
