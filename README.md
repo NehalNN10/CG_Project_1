@@ -1,4 +1,4 @@
-# Spooky Jungle (ڈراؤنا جنگل )
+# ڈراؤنا جنگل
 ### Nehal Naeem Haji, Raahim Hashmi, Hania Kashif
 
 This is our project submission for the course Computer Graphics (CS 440)

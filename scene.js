@@ -43,11 +43,11 @@ var turnSpeed = 1;
 let bobbingAmount = 0.01;
 let bobCounter = 0;
 
+// initial camera position
 const initCamX = 0.0;
 const initCamY = 0.6;
 const initCamZ = 20.0;
 
-// initial cam position
 var camX = initCamX;
 var camY = initCamY;
 var camZ = initCamZ;
@@ -87,6 +87,7 @@ var roadLength = 80.0;
 var stripWidth = 0.1;
 var roadSections = 40;
 
+// road rendering vars
 var roadVBuffer, roadCBuffer, roadNBuffer;
 var roadVertexCount = 0;
 
@@ -1075,7 +1076,7 @@ window.onload = async function init() {
         if (key in keys) keys[key] = false;
     });
 
-    // simulator alligator
+    // simulator
     render();
 }
 
@@ -1095,6 +1096,7 @@ function render() {
     document.querySelector("#turning-slider-val").textContent = document.querySelector("#turning-slider").value;
     document.querySelector("#fog-slider-val").textContent = document.querySelector("#fog-slider").value;
 
+    // changing FOV based on sprinting
     moving = (keys["w"] || keys["s"] || keys["a"] || keys["d"]);
     sprinting = keys["sprint"] && moving;
     sprintHeld = sprinting ? sprintHeld + fovChangeRate : sprintHeld - fovChangeRate;
