@@ -5,13 +5,14 @@ This is our project submission for the course Computer Graphics (CS 440)
 ***
 ## Controls
 - ### Movement
-    * `W`: Move forward
-    * `S`: Move backward
+    * `W`: Move Forward
+    * `S`: Move Backward
     * `A`: Strafe Left
     * `D`: Strafe Right
     * `Shift Left`: Sprint (hold and press any of `[W, A, S, D]` to move)
     * `Space`: Jump
     * `Control Left`: Crouch
+    * `R`: Reset Camera
 - ### Viewing
     * `Q`: Look Left
     * `E`: Look Right
