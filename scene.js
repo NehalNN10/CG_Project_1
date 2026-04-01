@@ -1091,17 +1091,27 @@ function render() {
     // read fogFar value from slider
     fogFar = Math.max(40 - parseFloat(document.querySelector("#fog-slider").value) * 2, fogNear + 0.1); // Ensure fogFar is always greater than fogNear
 
+    // altering camera near-far-left-right-top-bottom values
+    var baseFov = parseFloat(document.querySelector("#fov-slider").value);
+    var zNear = parseFloat(document.querySelector("#near-slider").value);
+    var zFar = parseFloat(document.querySelector("#far-slider").value);
+
     // update slider values
     document.querySelector("#speed-slider-val").textContent = document.querySelector("#speed-slider").value;
     document.querySelector("#turning-slider-val").textContent = document.querySelector("#turning-slider").value;
     document.querySelector("#fog-slider-val").textContent = document.querySelector("#fog-slider").value;
+    document.querySelector("#fov-slider-val").textContent = baseFov;
+    document.querySelector("#near-slider-val").textContent = zNear.toFixed(1);
+    document.querySelector("#far-slider-val").textContent = zFar;
+
 
     // changing FOV based on sprinting
     moving = (keys["w"] || keys["s"] || keys["a"] || keys["d"]);
     sprinting = keys["sprint"] && moving;
     sprintHeld = sprinting ? sprintHeld + fovChangeRate : sprintHeld - fovChangeRate;
     sprintHeld = Math.max(0, Math.min(sprintHeld, maxFovPercent)); // Clamp between 0 and maxFovPercent
-    var projectionMatrix = perspective(45.0*(1 + sprintHeld), canvas.width / canvas.height, 0.1, 100.0);
+    // var projectionMatrix = perspective(45.0*(1 + sprintHeld), canvas.width / canvas.height, 0.1, 100.0);
+    var projectionMatrix = perspective(baseFov * (1 + sprintHeld), canvas.width / canvas.height, zNear, zFar);
     
     // View Bobbing
     camY = camY + (0.4*Math.sin((0.5*(1+sprinting))*Math.PI*bobCounter) * bobbingAmount * (1 + sprinting))*moving; 

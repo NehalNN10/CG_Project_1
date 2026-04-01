@@ -38,6 +38,21 @@
                     <input type="range" id="fog-slider" min="1" max="16" value="14">
                 </div>
 
+                <div class="control-group">
+                    <label>Field of View: <span id="fov-slider-val">45</span>°</label>
+                    <input type="range" id="fov-slider" min="30" max="120" value="45">
+                </div>
+
+                <div class="control-group">
+                    <label>Near Plane: <span id="near-slider-val">0.1</span></label>
+                    <input type="range" id="near-slider" min="0.1" max="10.0" step="0.1" value="0.1">
+                </div>
+
+                <div class="control-group">
+                    <label>Far Plane: <span id="far-slider-val">100.0</span></label>
+                    <input type="range" id="far-slider" min="20.0" max="300.0" value="100.0">
+                </div>
+
                 <div class="instructions">
                     <h3>Controls</h3>
                     <p><b>W/A/S/D</b> - Move</p>
@@ -46,7 +61,7 @@
                     <p><b>Left/Right</b> - Roll Left/Right</p>
                     <p><b>Shift</b> - Sprint</p>
                     <p><b>Space / C</b> - Fly / Crouch</p>
-                    <p><b>1/2/3</b> - Flat/Gourad/Wireframe Shading</p>
+                    <p><b>1/2/3</b> - Flat/Gouraud/Wireframe Shading</p>
                     <p><b>R</b> - Reset Camera</p>
                 </div>
             </aside>
