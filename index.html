@@ -8,14 +8,14 @@
 </head>
 <body data-theme="dark"> <div class="app-container">
         <header class="top-bar">
-            <h1>Karsaz ka Dulha کارساز کا دولہا </h1>
+            <h1>Spooky Jungle (ڈراؤنا جنگل)</h1>
             <button id="theme-toggle" class="theme-btn">☀️ Light Mode</button>
         </header>
 
         <main class="game-area">
             
             <div class="canvas-container">
-                <canvas id="gl-canvas" width="1000" height="800">
+                <canvas id="gl-canvas" width="1000" height="750">
                     Your browser doesn't support the Canvas element
                 </canvas>
             </div>
@@ -42,6 +42,8 @@
                     <h3>Controls</h3>
                     <p><b>W/A/S/D</b> - Move</p>
                     <p><b>Q/E</b> - Turn Left/Right</p>
+                    <p><b>Up/Down</b> - Look Up/Down</p>
+                    <p><b>Left/Right</b> - Roll Left/Right</p>
                     <p><b>Shift</b> - Sprint</p>
                     <p><b>Space / Ctrl</b> - Jump / Crouch</p>
                     <p><b>1/2/3</b> - Shading Modes</p>
@@ -86,6 +88,8 @@
         uniform mat4 uProjectionMatrix;
         uniform mat4 uModelMatrix;
 
+        varying vec2 vGrassUV;   // grass perlin noise
+
         void main() {
             
             // Vertex position
@@ -98,6 +102,10 @@
             // Fog
             // radial distance from the camera to the vertex
             vDistance = length(viewSpacePosition.xyz);
+
+            // grass perlin noise
+            vec4 grassPosition = uModelMatrix * vPosition;
+            vGrassUV = grassPosition.xz;
             
             // Blinn-Phong Lighting from multiple sources
             vec4 worldPosition = uModelMatrix * vPosition;
@@ -163,13 +171,48 @@
         uniform float uFogFar;
         uniform vec4 uFogColor;
 
+        // grass perlin noise and toggle
+        varying vec2 vGrassUV;
+        uniform float uIsGrass;
+
+        // psuedorandom gen
+        vec2 random2(vec2 st){
+            st = vec2( dot(st,vec2(127.1,311.7)), dot(st,vec2(269.5,183.3)) );
+            return -1.0 + 2.0*fract(sin(st)*43758.5453123);
+        }
+
+        // perlin noise
+        float noise(vec2 st) {
+            vec2 i = floor(st);
+            vec2 f = fract(st);
+            vec2 u = f*f*(3.0-2.0*f);
+            
+            return mix( mix( dot( random2(i + vec2(0.0,0.0) ), f - vec2(0.0,0.0) ), dot( random2(i + vec2(1.0,0.0) ), f - vec2(1.0,0.0) ), u.x), mix( dot( random2(i + vec2(0.0,1.0) ), f - vec2(0.0,1.0) ), dot( random2(i + vec2(1.0,1.0) ), f - vec2(1.0,1.0) ), u.x), u.y);
+        }
+
         void main() {
-            // gl_FragColor = fColor;
+            vec4 finalBaseColor = fColor;
+
+            // apply the texture if this pixel belongs to the grass
+            if (uIsGrass > 0.5) {
+                // scale to make the noise patches larger or smaller. 
+                float n = noise(vGrassUV * 0.9); 
+                
+                // Noise returns [-1.0 to 1.0]. Shift it to [0.0 to 1.0]
+                n = n * 0.5 + 0.5; 
+                
+                vec3 brownColor = vec3(69, 44, 29)/255.0;
+                vec3 grassColor = vec3(0.1, 0.25, 0.1);
+                
+                // mix grass and brown based on noise
+                vec3 terrainTexture = mix(grassColor, brownColor, n);
+                finalBaseColor.rgb = (fColor.rgb / grassColor) * terrainTexture;
+            }
 
             float fogFactor = (uFogFar - vDistance) / (uFogFar - uFogNear);
             fogFactor = clamp(fogFactor, 0.0, 1.0);
-            // mix() linearly interpolates based on the fog factor
-            gl_FragColor = mix(uFogColor, fColor, fogFactor);
+            // mix() linearly interpolates based on the fog factor and the perlin noise factor in case of grass
+            gl_FragColor = mix(uFogColor, finalBaseColor, fogFactor);
         }
     </script>
     

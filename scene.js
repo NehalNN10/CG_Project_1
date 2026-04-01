@@ -16,6 +16,9 @@ var fogNear = 0.0;
 var fogFar = 8.0; 
 var uFogColorLoc, uFogNearLoc, uFogFarLoc;
 
+// shader toggle var for grass
+var uIsGrassLoc;
+
 // buffer vars
 var floorVBuffer, floorCBuffer, floorNBuffer;
 // var moonVBuffer, moonCBuffer;
@@ -88,7 +91,6 @@ var roadSections = 40;
 var roadVBuffer, roadCBuffer, roadNBuffer;
 var roadVertexCount = 0;
 
-
 // generating the road as smaller triangles for fog issue
 function generateRoad(roadWidth, roadLength, stripWidth, nBlocks) {
     // nBlocks is the number of blocks the road is divided into along its length, each block will be a separate set of triangles
@@ -128,25 +130,41 @@ function generateRoad(roadWidth, roadLength, stripWidth, nBlocks) {
 
         zStart = [zStart[0], 0.0, zStart[2] + blockLength];
 
-        colors.push(
-            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
-            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+        // colors.push(
+        //     0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+        //     0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
 
-            0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,
-            0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,
+        //     0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,
+        //     0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,   0.7, 0.7, 0.7, 1.0,
 
-            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
-            0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0
-        );
+        //     0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,
+        //     0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0,   0.1, 0.1, 0.1, 1.0
+        // );
 
-        normals.push(
-            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
-            0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0
-        );
+        // normals.push(
+        //     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+        //     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+        //     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+        //     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+        //     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,
+        //     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0
+        // );
+
+        for (let v = 0; v < 6; v++) {
+            colors.push(0.1, 0.1, 0.1, 1.0); 
+        }
+
+        for (let v = 0; v < 6; v++) {
+            colors.push(0.7, 0.7, 0.7, 1.0); 
+        }
+
+        for (let v = 0; v < 6; v++) {
+            colors.push(0.1, 0.1, 0.1, 1.0); 
+        }
+        
+        for (let v = 0; v < 18; v++) {
+            normals.push(0.0, 1.0, 0.0); 
+        }
     };
 
     return {
@@ -161,6 +179,84 @@ const roadVertices = roadData.vertices;
 const roadColors = roadData.colors;
 const roadNormals = roadData.normals;
 roadVertexCount = roadVertices.length / 3;
+
+
+// width of the grass patch on each side of the road
+var grassWidth = 15.0;
+var grassSectionsZ = roadSections; 
+var grassSectionsX = 15;
+
+function generateGrass(grassWidth, roadWidth, roadLength, numPatchesZ, numPatchesX) {
+    let vertices = [];
+    let colors = [];
+    let normals = [];
+
+    const patchLengthZ = roadLength / numPatchesZ;
+    const patchWidthX = grassWidth / numPatchesX;
+    
+    const leftInnerX = -roadWidth / 2;
+    const leftOuterX = leftInnerX - grassWidth;
+    const rightInnerX = roadWidth / 2;
+    const rightOuterX = rightInnerX + grassWidth;
+    
+    let zStart = -roadLength / 2;
+
+    for (let i = 0; i < numPatchesZ; i++) {
+        let z1 = zStart + (i * patchLengthZ);
+        let z2 = zStart + ((i + 1) * patchLengthZ);
+
+        // left grass patch
+        for (let j = 0; j < numPatchesX; j++) {
+            let x1 = leftOuterX + (j * patchWidthX);
+            let x2 = leftOuterX + ((j + 1) * patchWidthX);
+
+            vertices.push(x1, 0.0, z1);
+            vertices.push(x2, 0.0, z1);
+            vertices.push(x1, 0.0, z2);
+            
+            vertices.push(x1, 0.0, z2);
+            vertices.push(x2, 0.0, z1);
+            vertices.push(x2, 0.0, z2); 
+
+            for (let v = 0; v < 6; v++) {
+                colors.push(0.1, 0.25, 0.1, 1.0); 
+                normals.push(0.0, 1.0, 0.0); 
+            }
+        }
+
+        // right grass patch
+        for (let j = 0; j < numPatchesX; j++) {
+            let x1 = rightInnerX + (j * patchWidthX);
+            let x2 = rightInnerX + ((j + 1) * patchWidthX);
+
+            vertices.push(x1, 0.0, z1);
+            vertices.push(x2, 0.0, z1);
+            vertices.push(x1, 0.0, z2);
+            
+            vertices.push(x1, 0.0, z2);
+            vertices.push(x2, 0.0, z1);
+            vertices.push(x2, 0.0, z2);
+
+            for (let v = 0; v < 6; v++) {
+                colors.push(0.1, 0.25, 0.1, 1.0); 
+                normals.push(0.0, 1.0, 0.0); 
+            }
+        }
+    }
+
+    return {
+        vertices: new Float32Array(vertices),
+        colors: new Float32Array(colors),
+        normals: new Float32Array(normals)
+    };
+}
+
+var grassVertexCount = 0;
+const grassData = generateGrass(grassWidth, roadWidth, roadLength, grassSectionsZ, grassSectionsX);
+const grassVertices = grassData.vertices;
+const grassColors = grassData.colors;
+const grassNormals = grassData.normals;
+grassVertexCount = grassVertices.length / 3;
 
 // tree def
 function generateTree(type) // 4 <= numLayers <= 8
@@ -793,6 +889,20 @@ window.onload = async function init() {
     gl.bindBuffer(gl.ARRAY_BUFFER, roadNBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, roadNormals, gl.STATIC_DRAW);
 
+    // grass buffers
+    grassCBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, grassCBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, grassColors, gl.STATIC_DRAW);
+
+    grassVBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, grassVBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, grassVertices, gl.STATIC_DRAW);
+
+    // grass normal buffer
+    grassNBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, grassNBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, grassNormals, gl.STATIC_DRAW);
+
     // Tree buffers 
     for (let i = 0; i < 5; i++)
     {
@@ -869,6 +979,8 @@ window.onload = async function init() {
     uFogColorLoc = gl.getUniformLocation(program, "uFogColor");
     uFogNearLoc = gl.getUniformLocation(program, "uFogNear");
     uFogFarLoc = gl.getUniformLocation(program, "uFogFar");
+    // grass
+    uIsGrassLoc = gl.getUniformLocation(program, "uIsGrass");
 
     // light uniform locs
     uNumLightsLoc = gl.getUniformLocation(program, "uNumLights");
@@ -1054,11 +1166,14 @@ function render() {
         camX = initCamX;
         camY = initCamY;
         camZ = initCamZ;
+        yaw = 0.0;
+        pitch = 0.0;
+        roll = 0.0;
     }
 
     // clamp movement here
-    var limitX = roadWidth;
-    var limitZ = (roadLength / 2) - 1;  // Keeps them from falling off the ends of the road
+    var limitX = roadWidth;       // Keeps them roughly within the tree lines
+    var limitZ = (roadLength / 2) * 0.8;  // Keeps them from falling off the ends of the road
     var minY = 0.2;                     // Keeps them from sinking under the floor
     var maxY = 3.0;                     // Keeps them from flying away
 
@@ -1120,6 +1235,7 @@ function render() {
     gl.uniform1f(uFogNearLoc, fogNear);
     gl.uniform1f(uFogFarLoc, fogFar);
 
+    // The road uses an identity matrix (no movement)
     var identityMatrix = mat4();
     gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(identityMatrix));
 
@@ -1132,6 +1248,36 @@ function render() {
     gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
 
     gl.drawArrays(drawMode, 0, roadVertexCount);
+
+    // The grass uses an identity matrix (no movement)
+    var identityMatrix = mat4();
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(identityMatrix));
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, grassCBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, grassVBuffer);
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, grassNBuffer);
+    gl.vertexAttribPointer(vNormalLoc, 3, gl.FLOAT, false, 0, 0);
+
+    gl.uniform1f(uIsGrassLoc, 1.0); // switch to grass shader logic
+    gl.drawArrays(drawMode, 0, grassVertexCount);
+    gl.uniform1f(uIsGrassLoc, 0.0); // turn off grass shader logic for other objects
+
+    // Bind moon data
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonCBuffer);
+    gl.vertexAttribPointer(vColorLoc, 4, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, moonVBuffer); // Cuboid shape for moon for now
+    gl.vertexAttribPointer(vPositionLoc, 3, gl.FLOAT, false, 0, 0);
+
+    // Moon
+    var moveMoon = translate(moonX, moonY, moonZ);
+    var growMoon = scale(2.0, 2.0, 2.0);
+    var moonModelMatrix = mult(moveMoon, growMoon);
+
+    gl.uniformMatrix4fv(uModelMatrixLoc, false, flatten(moonModelMatrix));
+    gl.drawArrays(drawMode, 0, 36);
 
     // bind car data
     gl.bindBuffer(gl.ARRAY_BUFFER, carCBuffer);

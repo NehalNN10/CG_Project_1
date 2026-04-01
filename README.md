@@ -1,4 +1,4 @@
-# Karsaz ka Dulha (کارساز کا دولہا )
+# Spooky Jungle (ڈراؤنا جنگل )
 ### Nehal Naeem Haji, Raahim Hashmi, Hania Kashif
 
 This is our project submission for the course Computer Graphics (CS 440)
